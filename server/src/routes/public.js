@@ -29,7 +29,7 @@ router.get("/location/:slug/directory",async(req,res,next)=>{try{
 }catch(e){next(e);}});
 router.get("/location/:slug/lost-found",async(req,res,next)=>{try{
  const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});
- const now=new Date();const records=await InformationItem.find({organization:location.organization,type:"lost_found",published:true,visibility:"public",$or:[{location:null},{location:location._id}],$and:[{$or:[{startsAt:null},{startsAt:{$lte:now}}]},{$or:[{endsAt:null},{endsAt:{$gte:now}}]}],"metadata.itemStatus":"open"}).select("title body imageUrl metadata createdAt").sort({createdAt:-1}).limit(100).lean();
+ const now=new Date();const records=await InformationItem.find({organization:location.organization,type:"lost_found",published:true,visibility:"public",$or:[{location:null},{location:location._id}],$and:[{$or:[{startsAt:null},{startsAt:{$lte:now}}]},{$or:[{endsAt:null},{endsAt:{$gte:now}}]}],"metadata.itemStatus":"open","metadata.claimStatus":"none"}).select("title body imageUrl metadata createdAt").sort({createdAt:-1}).limit(100).lean();
  res.json({records:records.map(({_id,title,body,imageUrl,metadata={}})=>({_id,title,body,imageUrl,category:metadata.category||"Other",recordType:metadata.recordType||"lost",foundAt:metadata.foundAt||"",dateLost:metadata.dateLost||"",dateFound:metadata.dateFound||""}))});
 }catch(e){next(e);}});
 router.post("/location/:slug/lost-found",async(req,res,next)=>{try{
