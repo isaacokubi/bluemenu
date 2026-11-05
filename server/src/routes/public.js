@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { Agenda, Location, Menu, Order, ServiceRequest, Attendance, DiscoveryDevice,Appointment,Visitor,QueueTicket,Campaign,InformationItem } from "../models/index.js";
+import { Agenda, Location, Menu, Order, ServiceRequest, Attendance, DiscoveryDevice,Appointment,Visitor,QueueTicket,Campaign,InformationItem,TransportRoute } from "../models/index.js";
 import crypto from "node:crypto";
 import { initiateStkPush } from "../services/daraja.js";
 const router=Router();
 router.get("/discovery/:identifier",async(req,res,next)=>{try{const device=await DiscoveryDevice.findOne({identifier:String(req.params.identifier).toLowerCase(),active:true}).populate({path:"location",populate:{path:"organization",select:"name type"}}).lean();if(!device||!device.location)return res.status(404).json({error:"No active BlueMenu discovery point found"});res.json({location:{name:device.location.name,publicSlug:device.location.publicSlug,organization:device.location.organization},device:{type:device.deviceType,targetUrl:device.targetUrl}});}catch(e){next(e);}});
 router.get("/location/:slug",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).populate("organization","name type logoUrl");if(!location)return res.status(404).json({error:"Location not found"});res.json({location});}catch(e){next(e);}});
+router.get("/location/:slug/transport",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});const routes=await TransportRoute.find({organization:location.organization,location:location._id,active:true}).select("name routeCode origin destination stops departures").sort({name:1}).limit(100).lean();res.json({routes});}catch(e){next(e);}});
 router.get("/location/:slug/information",async(req,res,next)=>{try{
  const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});
  const now=new Date();const items=await InformationItem.find({organization:location.organization,published:true,visibility:"public",$or:[{location:null},{location:location._id}],$and:[{$or:[{startsAt:null},{startsAt:{$lte:now}}]},{$or:[{endsAt:null},{endsAt:{$gte:now}}]}]}).select("type title body linkUrl imageUrl priority startsAt endsAt publishedAt createdAt").sort({priority:-1,publishedAt:-1,createdAt:-1}).limit(100).lean();
