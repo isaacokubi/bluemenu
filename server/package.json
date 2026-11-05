@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "check": "node --check src/index.js && node --check src/models/index.js && node --check src/middleware/auth.js && node --check src/routes/auth.js && node --check src/routes/admin.js && node --check src/routes/public.js && node --check src/routes/workspace.js"
+    "check": "node --check src/index.js && node --check src/models/index.js && node --check src/middleware/auth.js && node --check src/routes/auth.js && node --check src/routes/admin.js && node --check src/routes/public.js && node --check src/routes/workspace.js && node --check src/routes/payments.js && node --check src/services/daraja.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
