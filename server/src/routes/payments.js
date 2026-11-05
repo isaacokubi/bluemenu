@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { Order } from "../models/index.js";
+import { Subscription } from "../models/Subscription.js";
 import { normalizePhone, verifyDarajaCallback } from "../services/daraja.js";
 
 const router = Router();
