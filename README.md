@@ -141,3 +141,11 @@ BlueMenu creates a 14-day Starter trial for new organizations. The workspace sho
 - Enterprise: custom quotation.
 
 The API exposes `GET /api/subscriptions/plans`, authenticated `GET /api/subscriptions/me`, and owner-only `POST /api/subscriptions/checkout` with `{plan,billingCycle,phone}`. Subscription activation is callback-driven: the Daraja callback verifies checkout ID, receipt, amount and payer phone before switching the tenant to active. Configure the same Daraja environment variables used for order payments and a public HTTPS callback at `/api/payments/daraja/callback`. Creation quotas are enforced server-side; viewing and existing records remain accessible when trial or billing is overdue.
+
+## Extended service workflows
+- **Inventory:** `GET/POST /api/workspace/inventory`, `PATCH /api/workspace/inventory/:id`, and `POST /api/workspace/inventory/:id/adjust`. Stock movements retain before/after quantities, actor, reason and time; issue operations reject negative stock.
+- **Appointments:** public `POST /api/public/location/:slug/appointments`; organization staff list and update status through `/api/workspace/appointments`.
+- **Visitor register:** public check-in `POST /api/public/location/:slug/visitors`; staff use `GET /api/workspace/visitors` and `PATCH /api/workspace/visitors/:id/checkout`.
+- **Queue management:** public `POST /api/public/location/:slug/queue`; staff monitor and update `/api/workspace/queue`.
+- **School meeting follow-up:** agenda records now include meeting type/status, minutes and action items with owners, due dates and workflow status.
+- **Analytics:** owner/manager-only `GET /api/workspace/analytics?days=30` returns organization-scoped paid revenue, order totals, attendance, service request counts and published content.
