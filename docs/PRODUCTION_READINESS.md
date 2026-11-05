@@ -5,11 +5,11 @@
 - **Hotel room allocation:** confirming a reservation now allocates concrete room IDs inside a MongoDB transaction. Room lock-version writes serialize competing confirmations. Check-in is allowed only from confirmed; check-out only from checked-in. Room availability remains advisory until confirmation.
 - **Restaurant table capacity:** table inventory can be created and maintained. Confirming a booking allocates one or more active tables whose combined seats fit the party, inside a transaction. The default reservation window is two hours.
 - **Push delivery:** server uses Firebase Cloud Messaging HTTP v1 with a service-account JSON secret. Staff tokens can be registered through authenticated workspace routes. Android app obtains FCM tokens, associates them with a venue after beacon resolution, and registers them through the public venue endpoint. Push sends record sent/partial/failed status; invalid tokens are disabled.
-- **Offline replay:** browser queue persists queue-ticket creation and meeting attendance check-ins. It retries on reconnect and has a manual sync control. The server idempotently replays supported commands in transactions: `queue.create`, `visitor.check_in`, `service_request.create`, `attendance.check_in`. Unsupported commands are rejected and reported; they are never silently accepted.
+- **Offline replay:** browser queue persists queue-ticket creation and meeting attendance check-ins. It retries on reconnect and has a manual sync control. The server idempotently replays supported commands in transactions: `queue.create`, `visitor.check_in`, `service_request.create`, `attendance.check_in`, `inventory.receive`, and `inventory.issue`. Inventory replay writes the stock movement and updates stock in the same transaction; stock issues are rejected if inventory is insufficient. Unsupported commands are rejected and reported; they are never silently accepted.
 - **Background BLE:** Android now offers opt-in foreground-service scanning in low-power mode with a persistent notification and venue notifications. This is not guaranteed continuous scanning on every OEM/Android power policy; users can stop it.
 - **Release signing:** CI can build a signed release APK when repository signing secrets and the production API URL variable exist. Debug builds continue without signing secrets.
 - **M-Pesa subscriptions:** owners explicitly opt in to scheduled renewal STK prompts. A trusted scheduler calls the renewal endpoint; each renewal still requires the customer to enter their M-Pesa PIN. Successful callbacks are validated against checkout ID, amount, receipt and phone. This is not a silent merchant-initiated recurring debit.
-- **Advertising marketplace:** paid campaigns can be created using a KES budget and Daraja STK Push. Campaign callback reconciliation validates amount, receipt and phone; paid campaigns may then be published. Public campaign feeds hide unpaid budgeted campaigns.
+- **Advertising marketplace:** paid campaigns can be created using a KES budget and Daraja STK Push. Campaign callback reconciliation validates amount, receipt and phone; sponsored campaigns require owner/manager moderation before publication. A payment ledger records successful and failed STK callbacks idempotently by checkout ID and receipt. Approved campaigns create a publisher settlement ledger with a configurable location revenue share, platform fee, payout phone and manual payout-reference reconciliation. The ledger does not initiate B2C transfers; those require separately approved Safaricom B2C credentials and compliance controls. Public campaign feeds hide unpaid budgeted campaigns.
 - **AI:** menu translation (English, Kiswahili, French, Arabic, German) and menu pairing/upsell recommendations are available through authenticated AI endpoints. The existing meeting assistant remains available. Recommendations are generated from supplied menu data and are not sales/popularity analytics.
 
 ## Required configuration — never commit these values
@@ -21,7 +21,7 @@ Set these in the API hosting provider:
 - `CLIENT_ORIGIN`: comma-separated exact HTTPS origins for the deployed web app; no wildcard.
 - `FCM_SERVICE_ACCOUNT_JSON`: one-line JSON for a Firebase service account with Firebase Cloud Messaging send permission.
 - `OPENAI_API_KEY` and optionally `AI_MODEL`: menu translation and recommendations.
-- `CRON_SECRET`: random secret used only by the renewal scheduler.
+- `CRON_SECRET`: random secret used only by the renewal scheduler.\n- `DARAJA_RECONCILE_SECRET`: independent random secret for the pending STK-query reconciliation endpoint.
 - Daraja production values: `DARAJA_ENV=production`, `DARAJA_CONSUMER_KEY`, `DARAJA_CONSUMER_SECRET`, `DARAJA_SHORTCODE`, `DARAJA_PASSKEY`, `DARAJA_CALLBACK_URL=https://YOUR_API_DOMAIN/api/payments/daraja/callback`; for Buy Goods also set `DARAJA_TRANSACTION_TYPE=CustomerBuyGoodsOnline` and `DARAJA_TILL_NUMBER`. Safaricom must have the callback URL registered and the production app/shortcode approved.
 - Cloudinary and Resend settings if media upload and account recovery are used.
 
@@ -65,7 +65,7 @@ Before pilot sign-off, test with two independent staff sessions:
 7. Test Daraja sandbox success, cancellation, timeout, duplicate callback, wrong amount, wrong phone and duplicate receipt. Only provider-verified callback may settle a payment.
 8. Test paid/unpaid ad campaign lifecycle, callback retries, date windows, click tracking and budget reporting.
 9. Verify AI outputs preserve IDs, ingredients, allergen notes and prices; manually review translations before publication.
-10. Run tenant-isolation tests, role tests, CSRF/CORS checks, rate-limit checks, secret scanning, dependency audit, backup restore and data deletion/export exercises.
+10. Verify the payment ledger rejects reused checkout IDs/receipts and that sponsored campaigns remain unpublished until paid and approved.\n11. Verify publisher settlement share calculations, payout-phone configuration and manual payout-reference audit trail; do not treat a manually entered reference as an automated B2C transfer.\n12. Run tenant-isolation tests, role tests, CSRF/CORS checks, rate-limit checks, secret scanning, production dependency audit, backup restore and data deletion/export exercises.
 
 ## Known release blockers / honest boundaries
 
