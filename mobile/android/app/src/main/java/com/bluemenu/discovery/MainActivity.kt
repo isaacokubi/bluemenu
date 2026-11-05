@@ -155,7 +155,7 @@ class MainActivity : Activity() {
         val data = record.getManufacturerSpecificData(0x004C) ?: return null
         if (data.size < 18 || data[0] != 0x02.toByte() || data[1] != 0x15.toByte()) return null
         val bytes = data.copyOfRange(2, 18)
-        val hex = bytes.joinToString("") { "%02x".format(it) }
+        val hex = bytes.joinToString("") { "%02x".format(it.toInt() and 0xff) }
         return (hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" +
             hex.substring(12, 16) + "-" + hex.substring(16, 20) + "-" +
             hex.substring(20, 32)).lowercase(Locale.US)
