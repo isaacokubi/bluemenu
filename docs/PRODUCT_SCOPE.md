@@ -30,3 +30,10 @@ Church programmes and announcements; event schedules; clinic service directories
 - QR-first fallback and offline/PWA support
 - Audit history for edits and publishing
 - Kenya-first support for KES, M-Pesa and local connectivity
+
+
+## Proposal completion status — November 2026
+
+Added in this delivery: tenant-scoped room inventory and room availability lookup; meeting resolution records with approval identity; attendance reports by date range; in-app notifications; bounded offline event ingestion with user/org idempotency; and queue-ticket creation. AI meeting assistance/menu description routes already exist and require an OpenAI key. Existing visitor check-in/out, queue transitions, campaign/advertising primitives and appointment management remain available.
+
+Important production boundaries: availability currently derives room occupancy from confirmed/in-house reservations but does not assign a specific room or lock capacity transactionally; push notifications are not sent (in-app only); offline events are accepted/idempotently stored but not replayed into domain mutations; Android BLE remains foreground-only; release APK signing requires operator-owned keystore; live M-Pesa billing/reconciliation needs production credentials/callback verification. Full table-capacity locking, subscription automation, advertising marketplace settlement, AI recommendations quality controls, security audit and real-device pilot acceptance remain outstanding and must not be represented as complete.

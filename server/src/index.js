@@ -11,6 +11,8 @@ import workspaceRoutes from "./routes/workspace.js";
 import paymentRoutes from "./routes/payments.js";
 import subscriptionRoutes from "./routes/subscriptions.js";
 import aiRoutes from "./routes/ai.js";
+import advancedRoutes from "./routes/advanced.js";
+import publicBookingRoutes from "./routes/public-bookings.js";
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
@@ -51,11 +53,13 @@ app.get("/api/health", (_req, res) => {
   });
 });
 app.use("/api/public", publicLimiter, publicRoutes);
+app.use("/api/public-bookings", publicLimiter, publicBookingRoutes);
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/workspace", workspaceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/workspace", advancedRoutes);
 app.use("/api/admin", adminRoutes);
 app.use((err, _req, res, _next) => {
   console.error(err);
