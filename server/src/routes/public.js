@@ -2,6 +2,7 @@ import { Router } from "express";
 import { Agenda, Location, Menu, Order, ServiceRequest, Attendance, DiscoveryDevice,Appointment,Visitor,QueueTicket,Campaign,InformationItem,TransportRoute,EventTicket } from "../models/index.js";
 import crypto from "node:crypto";
 import { initiateStkPush, normalizePhone } from "../services/daraja.js";
+import { validateLostFoundSubmission } from "../services/informationValidation.js";
 const router=Router();
 router.get("/discovery/:identifier",async(req,res,next)=>{try{const device=await DiscoveryDevice.findOne({identifier:String(req.params.identifier).toLowerCase(),active:true}).populate({path:"location",populate:{path:"organization",select:"name type"}}).lean();if(!device||!device.location)return res.status(404).json({error:"No active BlueMenu discovery point found"});res.json({location:{name:device.location.name,publicSlug:device.location.publicSlug,organization:device.location.organization},device:{type:device.deviceType,targetUrl:device.targetUrl}});}catch(e){next(e);}});
 router.get("/location/:slug",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).populate("organization","name type logoUrl");if(!location)return res.status(404).json({error:"Location not found"});res.json({location});}catch(e){next(e);}});
@@ -33,10 +34,9 @@ router.get("/location/:slug/lost-found",async(req,res,next)=>{try{
 }catch(e){next(e);}});
 router.post("/location/:slug/lost-found",async(req,res,next)=>{try{
  const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});
- const title=String(req.body?.title||"").trim().slice(0,180),body=String(req.body?.body||"").trim().slice(0,2000),phone=String(req.body?.contactPhone||"").trim().slice(0,25);
- const recordType=["lost","found"].includes(req.body?.recordType)?req.body.recordType:"lost";
- if(!title||!body||!phone)return res.status(400).json({error:"Title, description and a contact phone number are required"});
- const item=await InformationItem.create({organization:location.organization,location:location._id,type:"lost_found",title,body,visibility:"public",published:false,metadata:{recordType,itemStatus:"open",claimStatus:"none",category:String(req.body?.category||"Other").trim().slice(0,80),foundAt:String(req.body?.foundAt||"").trim().slice(0,180),dateLost:String(req.body?.dateLost||"").trim().slice(0,40),dateFound:String(req.body?.dateFound||"").trim().slice(0,40),contactPhone:phone}});
+ const validation=validateLostFoundSubmission(req.body||{});if(!validation.valid)return res.status(400).json({error:validation.error});
+ const report=validation.value;
+ const item=await InformationItem.create({organization:location.organization,location:location._id,type:"lost_found",title:report.title,body:report.body,visibility:"public",published:false,metadata:{recordType:report.recordType,itemStatus:"open",claimStatus:"none",category:report.category,foundAt:report.foundAt,dateLost:report.dateLost,dateFound:report.dateFound,contactPhone:report.contactPhone}});
  res.status(201).json({report:{id:item._id,status:"pending_moderation"},message:"Your report has been submitted for venue review."});
 }catch(e){next(e);}});
 router.post("/location/:slug/lost-found/:id/claim",async(req,res,next)=>{try{
