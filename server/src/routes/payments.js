@@ -10,6 +10,27 @@ router.post("/daraja/callback", async (req, res, next) => {
     const result = verifyDarajaCallback(req.body);
     if (!result) return res.status(400).json({ ResultCode: 1, ResultDesc: "Invalid callback payload" });
 
+    const subscription=await Subscription.findOne({checkoutRequestId:result.checkoutRequestId});
+    if(subscription){
+      if(subscription.paymentStatus!=="pending")return res.status(200).json({ResultCode:0,ResultDesc:"Callback acknowledged"});
+      if(result.resultCode===0){
+        const callbackPhone=normalizePhone(result.phone),expectedPhone=normalizePhone(subscription.checkoutPhone);
+        const validReceipt=Boolean(result.receipt&&/^[A-Z0-9]{6,20}$/i.test(result.receipt));
+        const validAmount=Number.isSafeInteger(result.amount)&&result.amount===subscription.requestedAmount;
+        if(!validReceipt||!validAmount||!callbackPhone||callbackPhone!==expectedPhone){
+          console.warn("Daraja subscription callback validation failed",String(subscription.organization));
+          return res.status(200).json({ResultCode:0,ResultDesc:"Callback acknowledged"});
+        }
+        const now=new Date(),duration=subscription.requestedBillingCycle==="annual"?365:30;
+        subscription.plan=subscription.requestedPlan;subscription.billingCycle=subscription.requestedBillingCycle;
+        subscription.status="active";subscription.currentPeriodStartsAt=now;subscription.currentPeriodEndsAt=new Date(now.getTime()+duration*86400000);
+        subscription.graceEndsAt=new Date(subscription.currentPeriodEndsAt.getTime()+7*86400000);
+        subscription.lastPaymentReference=result.receipt;subscription.lastPaymentAt=now;subscription.paymentStatus="paid";
+      }else{subscription.paymentStatus="failed";}
+      await subscription.save();
+      return res.status(200).json({ResultCode:0,ResultDesc:"Subscription callback processed"});
+    }
+
     const order = await Order.findOne({ checkoutRequestId: result.checkoutRequestId });
     if (!order) return res.status(200).json({ ResultCode: 0, ResultDesc: "Callback acknowledged" });
 
