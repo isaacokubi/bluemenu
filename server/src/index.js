@@ -20,12 +20,31 @@ const authLimiter=rateLimit({windowMs:15*60*1000,limit:12,standardHeaders:"draft
 const publicLimiter=rateLimit({windowMs:15*60*1000,limit:120,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many requests. Please try again later."}});
 app.use(express.json({ limit: "1mb" }));
 
+const databaseReady = () => mongoose.connection.readyState === 1;
+
+app.get("/api/health/live", (_req, res) => {
+  res.json({ ok: true, service: "BlueMenu API", status: "alive", timestamp: new Date().toISOString() });
+});
+
+app.get("/api/health/ready", (_req, res) => {
+  const ready = databaseReady();
+  res.status(ready ? 200 : 503).json({
+    ok: ready,
+    service: "BlueMenu API",
+    status: ready ? "ready" : "not_ready",
+    database: ready ? "connected" : "disconnected",
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get("/api/health", (_req, res) => {
-  res.json({
-    ok: true,
+  const ready = databaseReady();
+  res.status(ready ? 200 : 503).json({
+    ok: ready,
     service: "BlueMenu API",
     version: "0.2.0",
-    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    status: ready ? "ready" : "not_ready",
+    database: ready ? "connected" : "disconnected",
     timestamp: new Date().toISOString()
   });
 });
@@ -47,7 +66,18 @@ async function start() {
   }
   await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
   console.log("BlueMenu connected to MongoDB.");
-  app.listen(port, () => console.log(`BlueMenu API listening on ${port}`));
+  const server = app.listen(port, () => console.log(`BlueMenu API listening on ${port}`));
+  const shutdown = signal => {
+    console.log(`BlueMenu received ${signal}; closing server`);
+    server.close(async error => {
+      if (error) console.error("HTTP server shutdown error:", error);
+      try { await mongoose.disconnect(); } catch (disconnectError) { console.error("MongoDB shutdown error:", disconnectError); }
+      process.exit(error ? 1 : 0);
+    });
+    setTimeout(() => process.exit(1), 10000).unref();
+  };
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  process.once("SIGINT", () => shutdown("SIGINT"));
 }
 start().catch(error => {
   console.error("Unable to start BlueMenu:", error.message);
