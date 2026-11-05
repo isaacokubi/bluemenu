@@ -16,7 +16,12 @@ const subscriptionSchema = new Schema({
   cancellationRequestedAt:Date,
   requestedPlan:{type:String,enum:["starter","business","professional","enterprise"]},
   requestedBillingCycle:{type:String,enum:["monthly","annual"]},
-  planRequestAt:Date
+  planRequestAt:Date,
+  checkoutRequestId:{type:String,sparse:true},
+  merchantRequestId:String,
+  requestedAmount:Number,
+  checkoutPhone:String,
+  paymentStatus:{type:String,enum:["none","pending","paid","failed"],default:"none"}
 },{timestamps:true});
 subscriptionSchema.index({status:1,currentPeriodEndsAt:1});
 export const Subscription=model("Subscription",subscriptionSchema);
