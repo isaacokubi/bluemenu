@@ -41,7 +41,19 @@ class BeaconScanService : Service() {
     }
     private fun buildStatus(text:String):Notification=Notification.Builder(this,channelId).setSmallIcon(android.R.drawable.stat_sys_data_bluetooth).setContentTitle("BlueMenu Nearby").setContentText(text).setOngoing(true).setCategory(Notification.CATEGORY_SERVICE).build()
     private fun createChannel(){if(Build.VERSION.SDK_INT>=26){val manager=getSystemService(NotificationManager::class.java);manager.createNotificationChannel(NotificationChannel(channelId,"BlueMenu nearby discovery",NotificationManager.IMPORTANCE_LOW).apply{description="Shows when background beacon discovery is active"})}}
-    private fun parseUuid(result:ScanResult):String?{val data=result.scanRecord?.getManufacturerSpecificData(0x004C)?:return null;if(data.size<18||data[0]!=0x02.toByte()||data[1]!=0x15.toByte())return null;val hex=data.copyOfRange(2,18).joinToString(""){"%02x".format(it.toInt() and 0xff)};return (hex.substring(0,8)+"-"+hex.substring(8,12)+"-"+hex.substring(12,16)+"-"+hex.substring(16,20)+"-"+hex.substring(20,32)).lowercase(Locale.US)}
+    private fun parseUuid(result:ScanResult):String?{
+        val record=result.scanRecord?:return null
+        val iBeacon=record.getManufacturerSpecificData(0x004C)
+        if(iBeacon!=null&&iBeacon.size>=18&&iBeacon[0]==0x02.toByte()&&iBeacon[1]==0x15.toByte()){
+            val hex=iBeacon.copyOfRange(2,18).joinToString(""){"%02x".format(it.toInt() and 0xff)}
+            return (hex.substring(0,8)+"-"+hex.substring(8,12)+"-"+hex.substring(12,16)+"-"+hex.substring(16,20)+"-"+hex.substring(20,32)).lowercase(Locale.US)
+        }
+        val serviceData=record.getServiceData(ParcelUuid.fromString("0000feaa-0000-1000-8000-00805f9b34fb"))?:return null
+        if(serviceData.size<18||serviceData[0]!=0x00.toByte())return null
+        val namespace=serviceData.copyOfRange(2,12).joinToString(""){"%02x".format(it.toInt() and 0xff)}
+        val instance=serviceData.copyOfRange(12,18).joinToString(""){"%02x".format(it.toInt() and 0xff)}
+        return "eddystone-uid:$namespace:$instance".lowercase(Locale.US)
+    }
     private fun resolve(identifier:String){worker.execute{var c:HttpURLConnection?=null;try{val base=BuildConfig.API_BASE_URL.trimEnd('/');c=(URL("$base/api/public/discovery/$identifier").openConnection() as HttpURLConnection).apply{connectTimeout=7000;readTimeout=7000};if(c.responseCode !in 200..299)return@execute;val json=JSONObject(c.inputStream.bufferedReader().use{it.readText()});val location=json.getJSONObject("location");val target=json.getJSONObject("device").getString("targetUrl");val page=if(target.startsWith("https://"))target else base+(if(target.startsWith("/"))target else "/$target");showVenue(location.optString("name","BlueMenu venue"),page,identifier)}catch(e:Exception){Log.w("BlueMenuBLE","Beacon resolution failed",e)}finally{c?.disconnect()}}}
     private fun showVenue(name:String,url:String,id:String){val open=Intent(Intent.ACTION_VIEW,Uri.parse(url));val pending=PendingIntent.getActivity(this,id.hashCode(),open,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE);val notification=Notification.Builder(this,channelId).setSmallIcon(android.R.drawable.stat_sys_data_bluetooth).setContentTitle("BlueMenu venue nearby").setContentText(name).setStyle(Notification.BigTextStyle().bigText("$name is nearby. Tap to open its menu or information.")).setContentIntent(pending).setAutoCancel(true).build();getSystemService(NotificationManager::class.java).notify(id.hashCode(),notification)}
     private fun stopScan(){try{scanner?.stopScan(callback)}catch(e:Exception){Log.w("BlueMenuBLE","Stop scan",e)}}
