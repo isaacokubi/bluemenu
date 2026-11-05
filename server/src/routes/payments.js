@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import { Order,Campaign,Location,PaymentTransaction } from "../models/index.js";
 import { Subscription } from "../models/Subscription.js";
 import { normalizePhone, verifyDarajaCallback, queryStkPush } from "../services/daraja.js";
@@ -81,7 +82,7 @@ router.post("/daraja/callback", async (req, res, next) => {
 
 router.post("/daraja/reconcile",async(req,res,next)=>{try{
  const expected=String(process.env.DARAJA_RECONCILE_SECRET||""),provided=String(req.get("x-reconcile-secret")||"");
- if(!expected||provided.length!==expected.length||!require("node:crypto").timingSafeEqual(Buffer.from(provided),Buffer.from(expected)))return res.status(401).json({error:"Unauthorized reconciliation request"});
+ if(!expected||provided.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(provided),Buffer.from(expected)))return res.status(401).json({error:"Unauthorized reconciliation request"});
  const cutoff=new Date(Date.now()-2*60*1000),[subscriptions,campaigns]=await Promise.all([
   Subscription.find({paymentStatus:"pending",checkoutRequestId:{$exists:true,$ne:null},updatedAt:{$lte:cutoff}}).limit(50),
   Campaign.find({paymentStatus:"pending",checkoutRequestId:{$exists:true,$ne:null},updatedAt:{$lte:cutoff}}).limit(50)
