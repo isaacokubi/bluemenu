@@ -1,0 +1,8 @@
+import { Router } from "express";
+import { Agenda, Location, Menu } from "../models/index.js";
+const router=Router();
+router.get("/location/:slug",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).populate("organization","name type logoUrl");if(!location)return res.status(404).json({error:"Location not found"});res.json({location});}catch(e){next(e);}});
+router.get("/location/:slug/menu",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).select("_id");if(!location)return res.status(404).json({error:"Location not found"});const menus=await Menu.find({location:location._id,published:true}).sort({updatedAt:-1}).limit(10).lean();res.json({menus});}catch(e){next(e);}});
+router.get("/location/:slug/agendas",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).select("_id");if(!location)return res.status(404).json({error:"Location not found"});const agendas=await Agenda.find({location:location._id,published:true}).sort({meetingDate:-1}).limit(20).lean();res.json({agendas});}catch(e){next(e);}});
+router.get("/demo",(_req,res)=>res.json({organization:{name:"BlueMenu Demo",type:"restaurant"},menu:[{category:"Popular",items:[{name:"Grilled Chicken",description:"Herb-marinated chicken with seasonal sides",price:850,currency:"KES"},{name:"Fresh Juice",description:"Freshly squeezed seasonal fruit",price:250,currency:"KES"}]}],agenda:[{title:"School Staff Meeting",date:"2026-11-10",items:["Opening prayer","Review of previous minutes","Academic performance","Action points"]}]}));
+export default router;
