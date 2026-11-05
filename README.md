@@ -24,12 +24,21 @@ Web app: http://localhost:5173 | API readiness: http://localhost:5000/api/health
 
 See [MongoDB setup](docs/MONGODB_SETUP.md) for database configuration and API endpoints.
 
-## Roadmap
-1. Tenant/location management and secure publishing dashboard
-2. QR generation, BLE beacon discovery and offline/PWA experience
-3. Restaurant ordering, hotel guest services and school meeting tools
-4. Authentication, role-based permissions, audit logs, analytics and subscriptions
-5. Native Android companion app and field testing
+## Implemented foundation
+- Tenant/location management, role-based workspace and secure publishing.
+- QR generation, BLE beacon registry, NFC mapping, PWA and Android discovery companion.
+- Restaurant ordering, hotel guest requests, school/event agendas and attendee check-in.
+- JWT authentication, recovery, audit trail, tenant analytics and subscription trial/plan management.
+- M-Pesa order and subscription STK Push callbacks with receipt, amount and phone verification.
+
+## Remaining proposal roadmap
+- Hotel room reservations, inventory/stock controls and restaurant table booking.
+- School meeting minutes, resolutions, task ownership and richer attendance reports.
+- Visitor books, queue tickets, appointments, lost-and-found and feedback.
+- Advertisement campaigns/marketplace, opt-in proximity promotions and digital signage.
+- AI menu translation/recommendations and meeting notes/action extraction.
+- Push notifications, richer offline synchronization and Android field-tested background discovery.
+- Production hardening, accessibility review, pilot measurement and data-protection review.
 
 Never commit secrets; configure environment variables in deployment platforms.
 
@@ -122,3 +131,13 @@ The Daraja callback must be publicly reachable over HTTPS. BlueMenu rejects HTTP
 **Bluetooth limitation:** BlueMenu stores BLE beacon identifiers and resolves them to public location content. A BLE signal cannot universally force iOS or Android to open a webpage. QR, NFC and short links remain the reliable cross-platform fallback. An initial Android companion app is in mobile/android. It scans iBeacon UUIDs while the app is open; background scanning, Eddystone support, signed APK builds and physical beacon testing remain outstanding. See mobile/README.md.
 
 **Production checklist:** configure MongoDB, JWT, exact CORS origins, HTTPS app/API URLs, Cloudinary, a verified Resend sender and Daraja production credentials. Live payments, email delivery, media uploads and beacon hardware need real provider credentials and field testing.
+
+## Plans and subscription billing
+
+BlueMenu creates a 14-day Starter trial for new organizations. The workspace shows plan status and self-service pricing (KES):
+- Starter: KSh 500/month or KSh 5,000/year; 1 location, 5 menus/agendas, 2 team accounts.
+- Business: KSh 1,500/month or KSh 15,000/year; 3 locations, 30 menus/agendas, 10 team accounts.
+- Professional: KSh 3,500/month or KSh 35,000/year; 10 locations, 150 menus/agendas, 40 team accounts.
+- Enterprise: custom quotation.
+
+The API exposes `GET /api/subscriptions/plans`, authenticated `GET /api/subscriptions/me`, and owner-only `POST /api/subscriptions/checkout` with `{plan,billingCycle,phone}`. Subscription activation is callback-driven: the Daraja callback verifies checkout ID, receipt, amount and payer phone before switching the tenant to active. Configure the same Daraja environment variables used for order payments and a public HTTPS callback at `/api/payments/daraja/callback`. Creation quotas are enforced server-side; viewing and existing records remain accessible when trial or billing is overdue.
