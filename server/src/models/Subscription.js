@@ -13,7 +13,10 @@ const subscriptionSchema = new Schema({
   lastPaymentReference:String,
   lastPaymentAt:Date,
   mpesaPhone:String,
-  cancellationRequestedAt:Date,\n  requestedPlan:{type:String,enum:["starter","business","professional","enterprise"]},\n  requestedBillingCycle:{type:String,enum:["monthly","annual"]},\n  planRequestAt:Date
+  cancellationRequestedAt:Date,
+  requestedPlan:{type:String,enum:["starter","business","professional","enterprise"]},
+  requestedBillingCycle:{type:String,enum:["monthly","annual"]},
+  planRequestAt:Date
 },{timestamps:true});
 subscriptionSchema.index({status:1,currentPeriodEndsAt:1});
 export const Subscription=model("Subscription",subscriptionSchema);
