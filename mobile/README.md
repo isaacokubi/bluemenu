@@ -16,7 +16,7 @@ For local device testing, use your computer's LAN IP and port 5000, not localhos
 
 1. Configure the beacon to advertise the Apple iBeacon manufacturer frame (company ID 0x004C).
 2. Set its 16-byte Proximity UUID.
-3. In the BlueMenu workspace, add a discovery point with type **BLE beacon**, identifier equal to that UUID (lowercase or uppercase accepted by MongoDB only if the saved identifier matches the API lookup exactly; save it lowercase), and target URL such as `/p/your-location-slug`.
+3. In the BlueMenu workspace, add a discovery point with type **BLE beacon**, identifier equal to that UUID (BlueMenu normalizes the identifier to lowercase), and target URL such as `/p/your-location-slug`.
 4. Install the companion app on an Android phone and tap **Scan nearby**.
 
 The app currently scans in the foreground for 30 seconds at a time. It does not run as a background service and does not continuously track location. Android permission prompts are required. QR and NFC remain the universal fallback for iPhones and phones without the companion app.
