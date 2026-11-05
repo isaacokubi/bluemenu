@@ -2,6 +2,9 @@ package com.bluemenu.discovery
 
 import android.Manifest
 import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.ScanCallback
@@ -53,6 +56,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 26) getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("bluemenu_updates", "BlueMenu updates", NotificationManager.IMPORTANCE_DEFAULT))
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(28, 36, 28, 24)
