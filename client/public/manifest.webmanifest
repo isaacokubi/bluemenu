@@ -1,0 +1,11 @@
+{
+  "name": "BlueMenu",
+  "short_name": "BlueMenu",
+  "description": "Digital menus, meeting agendas and venue services.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f7f3",
+  "theme_color": "#123b35",
+  "icons": [{"src":"/bluemenu.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
