@@ -18,6 +18,9 @@ inviteSchema.index({expiresAt:1},{expireAfterSeconds:0});
 const serviceRequestSchema=new Schema({location:{type:Schema.Types.ObjectId,ref:"Location",required:true,index:true},requestNumber:{type:String,required:true,unique:true},customerName:{type:String,required:true},customerPhone:String,category:{type:String,enum:["room_service","housekeeping","maintenance","information","other"],default:"other"},message:{type:String,required:true},roomOrTable:String,status:{type:String,enum:["new","in_progress","resolved","cancelled"],default:"new"},assignedTo:{type:Schema.Types.ObjectId,ref:"User"},internalNotes:String},{timestamps:true});
 const attendanceSchema=new Schema({location:{type:Schema.Types.ObjectId,ref:"Location",required:true,index:true},agenda:{type:Schema.Types.ObjectId,ref:"Agenda",required:true},attendeeName:{type:String,required:true},attendeeEmail:String,attendeePhone:String,attendanceStatus:{type:String,enum:["registered","present","absent"],default:"registered"},checkedInAt:Date,checkinCode:{type:String,required:true,unique:true}},{timestamps:true});
 
+const passwordResetSchema=new Schema({user:{type:Schema.Types.ObjectId,ref:"User",required:true,index:true},tokenHash:{type:String,required:true,unique:true},expiresAt:{type:Date,required:true}},{timestamps:true});
+passwordResetSchema.index({expiresAt:1},{expireAfterSeconds:0});
+export const PasswordReset=model("PasswordReset",passwordResetSchema);
 export const User=model("User",userSchema);
 export const Organization=model("Organization",organizationSchema);
 export const Location=model("Location",locationSchema);
