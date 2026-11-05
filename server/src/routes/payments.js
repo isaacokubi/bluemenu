@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Order } from "../models/index.js";
+import { Order, Campaign } from "../models/index.js";
 import { Subscription } from "../models/Subscription.js";
 import { normalizePhone, verifyDarajaCallback } from "../services/daraja.js";
 
@@ -29,6 +29,21 @@ router.post("/daraja/callback", async (req, res, next) => {
       }else{subscription.paymentStatus="failed";}
       await subscription.save();
       return res.status(200).json({ResultCode:0,ResultDesc:"Subscription callback processed"});
+    }
+
+
+    const campaign=await Campaign.findOne({checkoutRequestId:result.checkoutRequestId});
+    if(campaign){
+      if(campaign.paymentStatus!=="pending")return res.status(200).json({ResultCode:0,ResultDesc:"Callback acknowledged"});
+      if(result.resultCode===0){
+        const callbackPhone=normalizePhone(result.phone),expectedPhone=normalizePhone(campaign.paymentPhone);
+        const validReceipt=Boolean(result.receipt&&/^[A-Z0-9]{6,20}$/i.test(result.receipt));
+        const validAmount=Number.isSafeInteger(result.amount)&&result.amount===campaign.budgetKES;
+        if(!validReceipt||!validAmount||!callbackPhone||callbackPhone!==expectedPhone){console.warn("Daraja advert callback validation failed",String(campaign._id));return res.status(200).json({ResultCode:0,ResultDesc:"Callback acknowledged"});}
+        campaign.paymentStatus="paid";campaign.paymentReference=result.receipt;
+      }else campaign.paymentStatus="failed";
+      await campaign.save();
+      return res.status(200).json({ResultCode:0,ResultDesc:"Campaign payment callback processed"});
     }
 
     const order = await Order.findOne({ checkoutRequestId: result.checkoutRequestId });
