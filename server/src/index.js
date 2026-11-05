@@ -14,6 +14,7 @@ import aiRoutes from "./routes/ai.js";
 import advancedRoutes from "./routes/advanced.js";
 import productionRoutes from "./routes/production.js";
 import publicBookingRoutes from "./routes/public-bookings.js";
+import informationRoutes from "./routes/information.js";
 import { ensureDeviceTokenIndexes } from "./services/maintenance.js";
 
 const app = express();
@@ -61,6 +62,7 @@ app.use("/api/public", publicLimiter, publicRoutes);
 app.use("/api/public-bookings", publicLimiter, publicBookingRoutes);
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/workspace", productionRoutes);
+app.use("/api/workspace", informationRoutes);
 app.use("/api/workspace", workspaceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
