@@ -84,6 +84,29 @@ export async function initiateStkPush({ phone, amount, accountReference, transac
   };
 }
 
+
+export async function queryStkPush(checkoutRequestId) {
+  const configurationError = darajaConfigurationError();
+  if (configurationError) throw new Error(configurationError);
+  if (!/^ws_CO_[A-Za-z0-9]+$/.test(String(checkoutRequestId || ""))) throw new Error("Invalid Daraja checkout request ID");
+  const { token, base } = await accessToken();
+  const timestamp = kenyaTimestamp();
+  const shortcode = process.env.DARAJA_SHORTCODE;
+  const payload = {
+    BusinessShortCode: shortcode,
+    Password: Buffer.from(shortcode + process.env.DARAJA_PASSKEY + timestamp).toString("base64"),
+    Timestamp: timestamp,
+    CheckoutRequestID: checkoutRequestId
+  };
+  const response = await fetch(base + "/mpesa/stkpushquery/v1/query", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(20000)
+  });
+  return parseProviderResponse(response, "Daraja STK query failed");
+}
+
 export function verifyDarajaCallback(body) {
   const callback = body?.Body?.stkCallback;
   if (!callback?.CheckoutRequestID || !Number.isInteger(Number(callback.ResultCode)) || Number(callback.ResultCode) < 0) return null;
