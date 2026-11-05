@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { Agenda, Location, Menu, Order, ServiceRequest, Attendance } from "../models/index.js";
+import { Agenda, Location, Menu, Order, ServiceRequest, Attendance, DiscoveryDevice } from "../models/index.js";
 import crypto from "node:crypto";
 import { initiateStkPush } from "../services/daraja.js";
 const router=Router();
+router.get("/discovery/:identifier",async(req,res,next)=>{try{const device=await DiscoveryDevice.findOne({identifier:req.params.identifier,active:true}).populate({path:"location",populate:{path:"organization",select:"name type"}}).lean();if(!device||!device.location)return res.status(404).json({error:"No active BlueMenu discovery point found"});res.json({location:{name:device.location.name,publicSlug:device.location.publicSlug,organization:device.location.organization},device:{type:device.deviceType,targetUrl:device.targetUrl}});}catch(e){next(e);}});
 router.get("/location/:slug",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).populate("organization","name type logoUrl");if(!location)return res.status(404).json({error:"Location not found"});res.json({location});}catch(e){next(e);}});
 router.get("/location/:slug/menu",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).select("_id");if(!location)return res.status(404).json({error:"Location not found"});const menus=await Menu.find({location:location._id,published:true}).sort({updatedAt:-1}).limit(10).lean();res.json({menus});}catch(e){next(e);}});
 router.get("/location/:slug/agendas",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).select("_id");if(!location)return res.status(404).json({error:"Location not found"});const agendas=await Agenda.find({location:location._id,published:true}).sort({meetingDate:-1}).limit(20).lean();res.json({agendas});}catch(e){next(e);}});
