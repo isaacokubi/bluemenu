@@ -31,6 +31,10 @@ See [MongoDB setup](docs/MONGODB_SETUP.md) for database configuration and API en
 - JWT authentication, recovery, audit trail, tenant analytics and subscription trial/plan management.
 - M-Pesa order and subscription STK Push callbacks with receipt, amount and phone verification.
 
+## Production integrations and acceptance
+
+See [the production readiness runbook](docs/PRODUCTION_READINESS.md) for Firebase push setup, transaction-safe hotel/table allocation, offline command replay, background BLE, signed APK secrets, M-Pesa renewal prompts, advertising payment lifecycle, AI menu tools and pilot acceptance procedures. External provider credentials and real-device tests are required before production sign-off.
+
 ## Remaining proposal roadmap
 - Hotel room reservations, inventory/stock controls and restaurant table booking.
 - School meeting minutes, resolutions, task ownership and richer attendance reports.
