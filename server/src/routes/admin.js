@@ -1,7 +1,16 @@
 import { Router } from "express";
+import { timingSafeEqual } from "node:crypto";
 import mongoose from "mongoose";
 import { Agenda, DiscoveryDevice, Location, Menu, Organization } from "../models/index.js";
 const router=Router();
+router.use((req,res,next)=>{
+  const expected=process.env.ADMIN_API_KEY;
+  const supplied=req.get("x-admin-api-key") || "";
+  if(!expected) return res.status(503).json({error:"Admin API is not configured. Set ADMIN_API_KEY."});
+  const a=Buffer.from(supplied); const b=Buffer.from(expected);
+  if(a.length!==b.length || !timingSafeEqual(a,b)) return res.status(401).json({error:"Valid admin API key required"});
+  next();
+});
 const slugify=value=>String(value||"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 const has=(body,fields)=>fields.every(k=>body[k]!==undefined&&String(body[k]).trim()!=="");
 router.post("/organizations",async(req,res,next)=>{try{if(!has(req.body,["name","type"]))return res.status(400).json({error:"Organization name and type are required"});const organization=await Organization.create({...req.body,slug:slugify(req.body.slug||req.body.name)});res.status(201).json({organization});}catch(e){next(e);}});
