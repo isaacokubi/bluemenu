@@ -57,7 +57,8 @@ router.patch("/campaigns/:id/review",allowRoles("owner","manager"),async(req,res
   const location=await Location.findById(campaign.location).select("organization adRevenueSharePercent adPayoutPhone");
   const share=Math.max(0,Math.min(100,Number(location?.adRevenueSharePercent??70))),publisherAmount=Math.round(campaign.budgetKES*share/100);
   await CampaignSettlement.findOneAndUpdate({campaign:campaign._id},{$setOnInsert:{organization:campaign.advertiserOrganization||location?.organization,location:campaign.location,campaign:campaign._id,grossAmount:campaign.budgetKES,publisherAmount,platformFeeAmount:campaign.budgetKES-publisherAmount,sharePercent:share,payoutPhone:location?.adPayoutPhone||"",status:"pending"}},{upsert:true,new:true,setDefaultsOnInsert:true});
- }
+  await CampaignSettlement.updateOne({campaign:campaign._id,status:"held"},{$set:{status:"pending"}});
+ }else if(campaign.reviewStatus==="rejected"){await CampaignSettlement.updateOne({campaign:campaign._id,status:"pending"},{$set:{status:"held"}});}
  await audit(req,"campaign.reviewed","campaign",campaign._id,{reviewStatus:campaign.reviewStatus,published:campaign.published});
  res.json({campaign,message:campaign.published?"Campaign approved, published and settlement ledger created":"Campaign review saved"});
  }catch(e){next(e);}});
