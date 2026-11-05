@@ -2,6 +2,7 @@ import { Router } from "express";
 import { Agenda, Location, Menu, Order, ServiceRequest, Attendance, DiscoveryDevice,Appointment,Visitor,QueueTicket,Campaign,InformationItem,TransportRoute,EventTicket } from "../models/index.js";
 import crypto from "node:crypto";
 import { initiateStkPush, normalizePhone } from "../services/daraja.js";
+import { validateLostFoundSubmission } from "../services/informationValidation.js";
 const router=Router();
 router.get("/discovery/:identifier",async(req,res,next)=>{try{const device=await DiscoveryDevice.findOne({identifier:String(req.params.identifier).toLowerCase(),active:true}).populate({path:"location",populate:{path:"organization",select:"name type"}}).lean();if(!device||!device.location)return res.status(404).json({error:"No active BlueMenu discovery point found"});res.json({location:{name:device.location.name,publicSlug:device.location.publicSlug,organization:device.location.organization},device:{type:device.deviceType,targetUrl:device.targetUrl}});}catch(e){next(e);}});
 router.get("/location/:slug",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).populate("organization","name type logoUrl");if(!location)return res.status(404).json({error:"Location not found"});res.json({location});}catch(e){next(e);}});
@@ -19,6 +20,33 @@ router.post("/location/:slug/events/:eventId/tickets",async(req,res,next)=>{try{
  try{ticket=await EventTicket.create({organization:location.organization,location:location._id,event:event._id,ticketNumber,idempotencyKey:key,customerName:name,customerPhone:phone,customerEmail:String(customerEmail||"").trim().slice(0,160),amountKES:amount,paymentStatus:amount===0?"not_required":"pending",paymentPhone:amount?phone:undefined});if(amount>0){const payment=await initiateStkPush({phone,amount,accountReference:ticketNumber,transactionDesc:"BlueMenu event ticket"});ticket.checkoutRequestId=payment.checkoutRequestId;ticket.merchantRequestId=payment.merchantRequestId;await ticket.save();ticket.paymentMessage=payment.message||"Check your phone to complete M-Pesa payment.";}}
  catch(error){if(ticket)await EventTicket.deleteOne({_id:ticket._id});await InformationItem.updateOne({_id:event._id,organization:location.organization},{$inc:{ticketsIssued:-1}});if(error.code===11000){const replay=await EventTicket.findOne({idempotencyKey:key,organization:location.organization});if(replay)return res.json({ticket:replay,replayed:true});}return res.status(503).json({error:error.message||"Ticket booking could not be completed"});}
  res.status(201).json({ticket,paymentMessage:amount?"M-Pesa payment requested. Your ticket is valid after payment is confirmed.":"Free ticket confirmed."});
+}catch(e){next(e);}});
+router.get("/location/:slug/directory",async(req,res,next)=>{try{
+ const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});
+ const now=new Date();const entries=await InformationItem.find({organization:location.organization,type:"directory",published:true,visibility:"public",$or:[{location:null},{location:location._id}],$and:[{$or:[{startsAt:null},{startsAt:{$lte:now}}]},{$or:[{endsAt:null},{endsAt:{$gte:now}}]}]}).select("title body imageUrl metadata createdAt").sort({title:1}).limit(200).lean();
+ const safeEntries=entries.map(({_id,title,body,imageUrl,metadata={}})=>({_id,title,body,imageUrl,category:metadata.category||"General",office:metadata.office||"",building:metadata.building||"",floor:metadata.floor||"",room:metadata.room||"",openingHours:metadata.openingHours||"",website:metadata.website||""}));
+ res.json({entries:safeEntries});
+}catch(e){next(e);}});
+router.get("/location/:slug/lost-found",async(req,res,next)=>{try{
+ const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});
+ const now=new Date();const records=await InformationItem.find({organization:location.organization,type:"lost_found",published:true,visibility:"public",$or:[{location:null},{location:location._id}],$and:[{$or:[{startsAt:null},{startsAt:{$lte:now}}]},{$or:[{endsAt:null},{endsAt:{$gte:now}}]}],"metadata.itemStatus":"open","metadata.claimStatus":"none"}).select("title body imageUrl metadata createdAt").sort({createdAt:-1}).limit(100).lean();
+ res.json({records:records.map(({_id,title,body,imageUrl,metadata={}})=>({_id,title,body,imageUrl,category:metadata.category||"Other",recordType:metadata.recordType||"lost",foundAt:metadata.foundAt||"",dateLost:metadata.dateLost||"",dateFound:metadata.dateFound||""}))});
+}catch(e){next(e);}});
+router.post("/location/:slug/lost-found",async(req,res,next)=>{try{
+ const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});
+ const validation=validateLostFoundSubmission(req.body||{});if(!validation.valid)return res.status(400).json({error:validation.error});
+ const report=validation.value;
+ const item=await InformationItem.create({organization:location.organization,location:location._id,type:"lost_found",title:report.title,body:report.body,visibility:"public",published:false,metadata:{recordType:report.recordType,itemStatus:"open",claimStatus:"none",category:report.category,foundAt:report.foundAt,dateLost:report.dateLost,dateFound:report.dateFound,contactPhone:report.contactPhone}});
+ res.status(201).json({report:{id:item._id,status:"pending_moderation"},message:"Your report has been submitted for venue review."});
+}catch(e){next(e);}});
+router.post("/location/:slug/lost-found/:id/claim",async(req,res,next)=>{try{
+ const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});
+ if(!/^[a-f\d]{24}$/i.test(req.params.id))return res.status(400).json({error:"Invalid lost-and-found record"});
+ const claimant=String(req.body?.claimantName||"").trim().slice(0,120),phone=String(req.body?.claimantPhone||"").trim().slice(0,25),notes=String(req.body?.claimNotes||"").trim().slice(0,500);
+ if(!claimant||!phone)return res.status(400).json({error:"Your name and contact phone are required"});
+ const item=await InformationItem.findOneAndUpdate({_id:req.params.id,organization:location.organization,location:location._id,type:"lost_found",published:true,"metadata.itemStatus":"open","metadata.claimStatus":"none"},{$set:{"metadata.claimStatus":"requested","metadata.claimantName":claimant,"metadata.claimantPhone":phone,"metadata.claimNotes":notes}},{new:true}).select("_id");
+ if(!item)return res.status(409).json({error:"This record is unavailable or already has a claim in progress"});
+ res.status(201).json({claim:{recordId:item._id,status:"requested"},message:"Your claim has been sent to the venue for verification."});
 }catch(e){next(e);}});
 router.get("/location/:slug/information",async(req,res,next)=>{try{
  const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});

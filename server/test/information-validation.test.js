@@ -24,3 +24,23 @@ test("publication windows reject invalid and reversed dates", () => {
   assert.equal(parsePublicationWindow("not-a-date", "").valid, false);
   assert.equal(parsePublicationWindow("2026-11-07", "2026-11-06").valid, false);
 });
+
+
+test("lost-and-found submissions validate and normalize contact details", async () => {
+  const { validateLostFoundSubmission } = await import("../src/services/informationValidation.js");
+  assert.equal(validateLostFoundSubmission({title:"Found wallet",body:"Near reception",contactPhone:"0707 476 586",recordType:"found"}).valid,true);
+  assert.equal(validateLostFoundSubmission({title:"Found wallet",body:"Near reception",contactPhone:"not-a-phone"}).valid,false);
+  assert.equal(validateLostFoundSubmission({title:"  Lost keys  ",body:"  At the library  ",contactPhone:"+254708374149"}).value.title,"Lost keys");
+});
+
+test("directory and lost-and-found metadata is allow-listed and bounded", async () => {
+  const { sanitizeInformationMetadata } = await import("../src/services/informationValidation.js");
+  const directory=sanitizeInformationMetadata({category:"Office",office:"Admissions",unexpected:"private"},"directory");
+  assert.equal(directory.office,"Admissions");
+  assert.equal("unexpected" in directory,false);
+  const lost=sanitizeInformationMetadata({recordType:"invalid",itemStatus:"invalid",claimStatus:"invalid",claimNotes:"x".repeat(900)},"lost_found");
+  assert.equal(lost.recordType,"lost");
+  assert.equal(lost.itemStatus,"open");
+  assert.equal(lost.claimStatus,"none");
+  assert.equal(lost.claimNotes.length,500);
+});

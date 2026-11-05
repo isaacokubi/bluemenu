@@ -158,3 +158,12 @@ AI endpoints require an authenticated workspace user, enforce input size limits 
 
 ## Advertising and local discovery
 Workspace owners/managers can create and publish location-level campaigns under `/api/workspace/campaigns`. Public location pages fetch active campaigns and count impressions/clicks in aggregate. Campaign destinations must be relative paths or HTTPS URLs. Nearby offers are shown on the venue's public page; BlueMenu does not silently push promotions to nearby phones.
+
+
+## Directory and lost-and-found workflows
+
+Workspace users with editor access can create location-scoped directory entries and lost-and-found records through `/api/workspace/information` using types `directory` and `lost_found`. Owners and managers control publishing. Directory public data is available at `GET /api/public/location/:slug/directory`.
+
+Visitors can submit lost/found reports at `POST /api/public/location/:slug/lost-found`. Reports enter pending moderation and are not publicly listed until an owner or manager publishes them. Published open records appear at `GET /api/public/location/:slug/lost-found`; visitors can request a claim with `POST /api/public/location/:slug/lost-found/:id/claim`. Claim requests are stored for staff verification; claimant contact details are never included in public listing responses.
+
+These workflows reuse the existing InformationItem collection and do not create a new MongoDB collection.
