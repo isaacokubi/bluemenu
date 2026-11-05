@@ -41,7 +41,7 @@ router.post("/cancel-request",requireAuth,allowRoles("owner"),async(req,res,next
 router.post("/reconcile",async(req,res,next)=>{try{
  const expected=String(process.env.BILLING_RECONCILE_SECRET||""),provided=String(req.get("x-billing-reconcile-secret")||"");
  if(!expected||provided.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(provided),Buffer.from(expected)))return res.status(401).json({error:"Unauthorized billing reconciliation"});
- const now=new Date(),subscriptions=await Subscription.find({$or:[{status:"trialing",trialEndsAt:{$lte:now}},{status:"active",currentPeriodEndsAt:{$lte:now}},{status:"past_due",graceEndsAt:{$lte:now}}]}).limit(500);
+ const now=new Date(),subscriptions=await Subscription.find({$or:[{status:"trialing",trialEndsAt:{$lte:now}},{status:"active",currentPeriodEndsAt:{$lte:now}},{status:"past_due",$or:[{graceEndsAt:null},{graceEndsAt:{$lte:now}}]}]}).limit(500);
  let pastDue=0,suspended=0;
  for(const subscription of subscriptions){
   if(subscription.status==="active"||subscription.status==="trialing"){
