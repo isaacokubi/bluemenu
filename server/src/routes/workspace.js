@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import mongoose from "mongoose";
-import { Agenda,DiscoveryDevice,Location,Menu,Organization,Order,ServiceRequest,Invite,User,Attendance,AuditLog,InventoryItem,StockMovement,Appointment,Visitor,QueueTicket,Campaign } from "../models/index.js";
+import { Agenda,DiscoveryDevice,Location,Menu,Organization,Order,ServiceRequest,Invite,User,Attendance,AuditLog,InventoryItem,StockMovement,Appointment,Visitor,QueueTicket,Campaign,InformationItem } from "../models/index.js";
 import { requireAuth,allowRoles } from "../middleware/auth.js";
 import { assertPlanAllows } from "../services/planGuard.js";
 const router=Router();router.use(requireAuth);
@@ -67,4 +67,28 @@ router.patch("/service-requests/:id",editable,async(req,res,next)=>{try{if(!vali
 
 router.delete("/menus/:id",allowRoles("owner","manager"),async(req,res,next)=>{try{if(!validId(req.params.id))return res.status(400).json({error:"Invalid menu ID"});const ids=await Location.find({organization:req.user.organization}).distinct("_id");const result=await Menu.deleteOne({_id:req.params.id,location:{$in:ids}});if(result.deletedCount)await audit(req,"menu.deleted","menu",req.params.id);res.json({deleted:result.deletedCount===1});}catch(e){next(e);}});
 router.delete("/agendas/:id",allowRoles("owner","manager"),async(req,res,next)=>{try{if(!validId(req.params.id))return res.status(400).json({error:"Invalid agenda ID"});const ids=await Location.find({organization:req.user.organization}).distinct("_id");const result=await Agenda.deleteOne({_id:req.params.id,location:{$in:ids}});if(result.deletedCount)await audit(req,"agenda.deleted","agenda",req.params.id);res.json({deleted:result.deletedCount===1});}catch(e){next(e);}});
+router.get("/information",async(req,res,next)=>{try{const ids=await Location.find({organization:req.user.organization}).distinct("_id");const items=await InformationItem.find({organization:req.user.organization,$or:[{location:null},{location:{$in:ids}}]}).populate("location","name publicSlug").sort({createdAt:-1}).limit(300).lean();res.json({items});}catch(e){next(e);}});
+router.post("/information",editable,async(req,res,next)=>{try{
+ const {locationId,type,title,body,linkUrl,imageUrl,visibility,priority,startsAt,endsAt}=req.body||{};
+ if(!["announcement","document","signage","event"].includes(type)||!String(title||"").trim()||!String(body||"").trim())return res.status(400).json({error:"A valid content type, title and description are required"});
+ let location=null;if(locationId){if(!validId(locationId))return res.status(400).json({error:"Invalid location"});location=await Location.findOne({_id:locationId,organization:req.user.organization});if(!location)return res.status(404).json({error:"Location not found"});}
+ const safeUrl=value=>{const url=String(value||"").trim();return !url||url.startsWith("/")||/^https:\/\//i.test(url);};
+ if(!safeUrl(linkUrl)||!safeUrl(imageUrl))return res.status(400).json({error:"Links must be relative paths or HTTPS URLs"});
+ const start=startsAt?new Date(startsAt):undefined,end=endsAt?new Date(endsAt):undefined;if((startsAt&&Number.isNaN(start.getTime()))||(endsAt&&Number.isNaN(end.getTime()))||(start&&end&&end<=start))return res.status(400).json({error:"Enter a valid publication date range"});
+ const item=await InformationItem.create({organization:req.user.organization,location:location?._id||null,type,title:String(title).trim().slice(0,180),body:String(body).trim().slice(0,10000),linkUrl:String(linkUrl||"").trim().slice(0,1000),imageUrl:String(imageUrl||"").trim().slice(0,1000),visibility:visibility==="internal"?"internal":"public",priority:["normal","important","emergency"].includes(priority)?priority:"normal",startsAt:start,endsAt:end,createdBy:req.user._id});
+ await audit(req,"information.created","information",item._id,{title:item.title,type:item.type});res.status(201).json({item});
+}catch(e){next(e);}});
+router.patch("/information/:id",editable,async(req,res,next)=>{try{
+ if(!validId(req.params.id))return res.status(400).json({error:"Invalid information item"});
+ const item=await InformationItem.findOne({_id:req.params.id,organization:req.user.organization});if(!item)return res.status(404).json({error:"Information item not found"});
+ if(req.body.published!==undefined){if(!["owner","manager"].includes(req.user.role))return res.status(403).json({error:"Only owners and managers can publish information"});item.published=Boolean(req.body.published);item.publishedAt=item.published?new Date():null;}
+ for(const key of ["title","body","linkUrl","imageUrl","visibility","priority","startsAt","endsAt"])if(req.body[key]!==undefined)item[key]=req.body[key];
+ if(req.body.locationId!==undefined){if(!req.body.locationId)item.location=null;else{if(!validId(req.body.locationId))return res.status(400).json({error:"Invalid location"});const loc=await Location.findOne({_id:req.body.locationId,organization:req.user.organization});if(!loc)return res.status(404).json({error:"Location not found"});item.location=loc._id;}}
+ if(item.linkUrl&&!item.linkUrl.startsWith("/")&&!/^https:\/\//i.test(item.linkUrl))return res.status(400).json({error:"Links must be relative paths or HTTPS URLs"});
+ if(item.imageUrl&&!item.imageUrl.startsWith("/")&&!/^https:\/\//i.test(item.imageUrl))return res.status(400).json({error:"Image links must be relative paths or HTTPS URLs"});
+ if(item.startsAt&&item.endsAt&&item.endsAt<=item.startsAt)return res.status(400).json({error:"End date must be after start date"});
+ await item.save();await audit(req,item.published?"information.published":"information.updated","information",item._id,{title:item.title,published:item.published});res.json({item});
+}catch(e){next(e);}});
+router.delete("/information/:id",allowRoles("owner","manager"),async(req,res,next)=>{try{if(!validId(req.params.id))return res.status(400).json({error:"Invalid information item"});const result=await InformationItem.deleteOne({_id:req.params.id,organization:req.user.organization});if(result.deletedCount)await audit(req,"information.deleted","information",req.params.id);res.json({deleted:result.deletedCount===1});}catch(e){next(e);}});
+
 export default router;
