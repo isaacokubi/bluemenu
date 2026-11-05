@@ -1,6 +1,6 @@
 import { Router } from "express";
 import mongoose from "mongoose";
-import { Agenda,Attendance,Location,Organization,Reservation,TableBooking,Room,RoomNight,TableSlot,DeviceToken,MeetingResolution,Notification,OfflineEvent,QueueTicket,AuditLog,Campaign } from "../models/index.js";
+import { Agenda,Attendance,Location,Organization,Reservation,TableBooking,Room,RoomNight,TableSlot,DeviceToken,MeetingResolution,Notification,OfflineEvent,QueueTicket,AuditLog,Campaign,CampaignSettlement } from "../models/index.js";
 import { requireAuth,allowRoles } from "../middleware/auth.js";
 import { sendOrganizationPush } from "../services/push.js";
 import { initiateStkPush, normalizePhone } from "../services/daraja.js";
@@ -158,7 +158,40 @@ router.patch("/advertising/campaigns/:id/review",allowRoles("owner","manager"),a
  const ids=await locations(req.user.organization),campaign=await Campaign.findOne({_id:req.params.id,location:{$in:ids}});
  if(!campaign)return res.status(404).json({error:"Campaign not found"});
  campaign.reviewStatus=req.body.reviewStatus;campaign.published=campaign.reviewStatus==="approved"&&campaign.paymentStatus==="paid";
- await campaign.save();await audit(req,"campaign.reviewed","campaign",campaign._id,{reviewStatus:campaign.reviewStatus,published:campaign.published});
- res.json({campaign,message:campaign.published?"Paid campaign approved and published":"Campaign review saved"});
+ await campaign.save();
+ if(campaign.published){
+  const location=await Location.findById(campaign.location).select("organization adRevenueSharePercent adPayoutPhone");
+  const share=Math.max(0,Math.min(100,Number(location?.adRevenueSharePercent??70))),publisherAmount=Math.round(campaign.price*share/100);
+  await CampaignSettlement.findOneAndUpdate({campaign:campaign._id},{$setOnInsert:{organization:req.user.organization,location:campaign.location,campaign:campaign._id,grossAmount:campaign.price,publisherAmount,platformFeeAmount:campaign.price-publisherAmount,sharePercent:share,payoutPhone:location?.adPayoutPhone||"",status:"pending"}},{upsert:true,new:true,setDefaultsOnInsert:true});
+ }
+ await audit(req,"campaign.reviewed","campaign",campaign._id,{reviewStatus:campaign.reviewStatus,published:campaign.published});
+ res.json({campaign,message:campaign.published?"Paid campaign approved, published and settlement ledger created":"Campaign review saved"});
+ }catch(e){next(e);}});
+
+router.patch("/locations/:id/ad-settlement-config",allowRoles("owner","manager"),async(req,res,next)=>{try{
+ if(!idOk(req.params.id))return res.status(400).json({error:"Invalid location"});
+ const phone=normalizePhone(req.body?.payoutPhone),share=Number(req.body?.sharePercent);
+ if(!phone||!Number.isFinite(share)||share<0||share>100)return res.status(400).json({error:"Provide a valid Kenyan payout phone and revenue share from 0 to 100"});
+ const location=await Location.findOneAndUpdate({_id:req.params.id,organization:req.user.organization},{$set:{adPayoutPhone:phone,adRevenueSharePercent:share}},{new:true});
+ if(!location)return res.status(404).json({error:"Location not found"});
+ await CampaignSettlement.updateMany({location:location._id,status:"pending"},{$set:{payoutPhone:phone}});
+ await audit(req,"advertising.settlement_config_updated","location",location._id,{sharePercent:share});
+ res.json({location:{_id:location._id,name:location.name,adPayoutPhone:location.adPayoutPhone,adRevenueSharePercent:location.adRevenueSharePercent}});
+ }catch(e){next(e);}});
+router.get("/advertising/settlements",allowRoles("owner","manager"),async(req,res,next)=>{try{
+ const ids=await locations(req.user.organization);
+ const settlements=await CampaignSettlement.find({location:{$in:ids}}).sort({createdAt:-1}).limit(200).populate("campaign","title sponsorName").populate("location","name").lean();
+ res.json({settlements});
+ }catch(e){next(e);}});
+router.patch("/advertising/settlements/:id/mark-paid",allowRoles("owner","manager"),async(req,res,next)=>{try{
+ if(!idOk(req.params.id))return res.status(400).json({error:"Invalid settlement"});
+ const reference=String(req.body?.payoutReference||"").trim().toUpperCase();
+ if(!/^[A-Z0-9-]{6,30}$/.test(reference))return res.status(400).json({error:"Enter a verified M-Pesa/B2C payout reference"});
+ const ids=await locations(req.user.organization),settlement=await CampaignSettlement.findOne({_id:req.params.id,location:{$in:ids}});
+ if(!settlement)return res.status(404).json({error:"Settlement not found"});
+ if(settlement.status!=="pending"||!settlement.payoutPhone)return res.status(409).json({error:"Settlement is not pending or has no configured publisher payout phone"});
+ settlement.status="paid_manual";settlement.payoutReference=reference;settlement.paidAt=new Date();settlement.processedBy=req.user._id;await settlement.save();
+ await audit(req,"advertising.settlement_marked_paid","campaign_settlement",settlement._id,{payoutReference:reference,amount:settlement.publisherAmount});
+ res.json({settlement,message:"Settlement marked paid with the supplied payout reference. Verify the actual transfer in the M-Pesa statement."});
  }catch(e){next(e);}});
 export default router;
