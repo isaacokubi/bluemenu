@@ -94,7 +94,8 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
-    private fun requestScanPermissionAndStart(background: Boolean = false) {\n        backgroundRequested = background
+    private fun requestScanPermissionAndStart(background: Boolean = false) {
+        backgroundRequested = background
         val needed = if (Build.VERSION.SDK_INT >= 31) {
             if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.POST_NOTIFICATIONS) else arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         } else {
@@ -117,7 +118,13 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun startBackgroundService() {\n        val intent = Intent(this, BeaconScanService::class.java).setAction(BeaconScanService.ACTION_START)\n        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)\n        status.text = "Background discovery is active. Use the ongoing notification to return to BlueMenu."\n    }\n\n    private fun startScanning() {
+    private fun startBackgroundService() {
+        val intent = Intent(this, BeaconScanService::class.java).setAction(BeaconScanService.ACTION_START)
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+        status.text = "Background discovery is active. Use the ongoing notification to return to BlueMenu."
+    }
+
+    private fun startScanning() {
         val adapter = (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter
         if (adapter == null) { status.text = "Bluetooth is not available on this phone."; return }
         if (!adapter.isEnabled) { startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), 42); return }
