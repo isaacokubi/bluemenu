@@ -72,6 +72,16 @@ router.patch("/table-bookings/:id",allowRoles("owner","manager"),async(req,res,n
  await audit(req,"table_booking.status_changed","table_booking",booking._id,{status:booking.status,capacityHeld:booking.capacityHeld});
  res.json({booking});
  }catch(e){if(session?.inTransaction())await session.abortTransaction().catch(()=>{});if(e?.code===11000)return res.status(409).json({error:"Another booking reserved this time slot. Refresh and retry."});next(e);}finally{await session?.endSession().catch(()=>{});}});
+
+router.patch("/locations/:id/table-capacity",allowRoles("owner","manager"),async(req,res,next)=>{try{
+ if(!idOk(req.params.id))return res.status(400).json({error:"Invalid location"});
+ const capacity=Number(req.body?.tableCapacity);
+ if(!Number.isSafeInteger(capacity)||capacity<1||capacity>1000)return res.status(400).json({error:"tableCapacity must be a whole number from 1 to 1000"});
+ const location=await Location.findOneAndUpdate({_id:req.params.id,organization:req.user.organization},{$set:{tableCapacity:capacity}},{new:true});
+ if(!location)return res.status(404).json({error:"Location not found"});
+ await audit(req,"location.table_capacity_updated","location",location._id,{tableCapacity:capacity});
+ res.json({location});
+ }catch(e){next(e);}});
 router.get("/rooms",async(req,res,next)=>{try{const ids=await locations(req.user.organization);res.json({rooms:await Room.find({location:{$in:ids}}).sort({roomNumber:1}).lean()});}catch(e){next(e);}});
 router.post("/rooms",edit,async(req,res,next)=>{try{const {locationId,roomNumber,roomType,capacity,ratePerNight}=req.body||{};if(!idOk(locationId)||!String(roomNumber||"").trim()||!String(roomType||"").trim())return res.status(400).json({error:"Location, room number and room type are required"});const loc=await Location.findOne({_id:locationId,organization:req.user.organization});if(!loc)return res.status(404).json({error:"Location not found"});const room=await Room.create({location:loc._id,roomNumber:String(roomNumber).trim().slice(0,40),roomType:String(roomType).trim().slice(0,80),capacity:Math.max(1,Math.min(20,Number(capacity)||2)),ratePerNight:Math.max(0,Number(ratePerNight)||0)});await audit(req,"room.created","room",room._id);res.status(201).json({room});}catch(e){next(e);}});
 router.patch("/rooms/:id",edit,async(req,res,next)=>{try{if(!idOk(req.params.id))return res.status(400).json({error:"Invalid room"});const ids=await locations(req.user.organization);const room=await Room.findOne({_id:req.params.id,location:{$in:ids}});if(!room)return res.status(404).json({error:"Room not found"});for(const k of ["roomNumber","roomType","capacity","ratePerNight","active"])if(req.body[k]!==undefined)room[k]=req.body[k];await room.save();await audit(req,"room.updated","room",room._id);res.json({room});}catch(e){next(e);}});
