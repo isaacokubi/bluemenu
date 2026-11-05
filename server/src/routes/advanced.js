@@ -8,6 +8,7 @@ import { replayOfflineCommand } from "../services/offlineSync.js";
 const router=Router();router.use(requireAuth);
 const edit=allowRoles("owner","manager","editor");
 const idOk=id=>mongoose.isValidObjectId(id);
+const transactionUnavailable=error=>/Transaction numbers are only allowed|replica set|mongos|does not support transactions/i.test(String(error?.message||""));
 const locations=async org=>Location.find({organization:org}).distinct("_id");
 async function audit(req,action,type,id,details={}){try{await AuditLog.create({organization:req.user.organization,actor:req.user._id,action,entityType:type,entityId:String(id||""),details,ipAddress:req.ip,userAgent:String(req.get("user-agent")||"").slice(0,300)});}catch(e){console.error("Audit write failed",e.message);}}
 router.get("/reservations",async(req,res,next)=>{try{const ids=await locations(req.user.organization);res.json({reservations:await Reservation.find({location:{$in:ids}}).sort({createdAt:-1}).limit(300).lean()});}catch(e){next(e);}});
@@ -47,7 +48,7 @@ router.patch("/reservations/:id",edit,async(req,res,next)=>{let session;try{
  }
  await audit(req,"reservation.status_changed","reservation",reservation._id,{status:reservation.status,assignedRooms:reservation.assignedRooms?.length||0});
  res.json({reservation,allocatedRooms:reservation.assignedRooms?.length||0});
- }catch(e){if(session?.inTransaction())await session.abortTransaction().catch(()=>{});if(e?.code===11000)return res.status(409).json({error:"Room inventory changed while confirming. Refresh availability and retry."});next(e);}finally{await session?.endSession().catch(()=>{});}});
+ }catch(e){if(session?.inTransaction())await session.abortTransaction().catch(()=>{});if(e?.code===11000)return res.status(409).json({error:"Room inventory changed while confirming. Refresh availability and retry."});if(transactionUnavailable(e))return res.status(503).json({error:"Room confirmation requires MongoDB Atlas or another replica-set database with transaction support"});next(e);}finally{await session?.endSession().catch(()=>{});}});
 router.get("/table-bookings",async(req,res,next)=>{try{const ids=await locations(req.user.organization);res.json({bookings:await TableBooking.find({location:{$in:ids}}).sort({bookingAt:1}).limit(300).lean()});}catch(e){next(e);}});
 router.patch("/table-bookings/:id",allowRoles("owner","manager"),async(req,res,next)=>{let session;try{
  if(!idOk(req.params.id)||!["requested","confirmed","seated","completed","cancelled","no_show"].includes(req.body.status))return res.status(400).json({error:"Invalid table booking or status"});
@@ -71,7 +72,7 @@ router.patch("/table-bookings/:id",allowRoles("owner","manager"),async(req,res,n
  }else{booking.status=nextStatus;await booking.save();}
  await audit(req,"table_booking.status_changed","table_booking",booking._id,{status:booking.status,capacityHeld:booking.capacityHeld});
  res.json({booking});
- }catch(e){if(session?.inTransaction())await session.abortTransaction().catch(()=>{});if(e?.code===11000)return res.status(409).json({error:"Another booking reserved this time slot. Refresh and retry."});next(e);}finally{await session?.endSession().catch(()=>{});}});
+ }catch(e){if(session?.inTransaction())await session.abortTransaction().catch(()=>{});if(e?.code===11000)return res.status(409).json({error:"Another booking reserved this time slot. Refresh and retry."});if(transactionUnavailable(e))return res.status(503).json({error:"Table confirmation requires MongoDB Atlas or another replica-set database with transaction support"});next(e);}finally{await session?.endSession().catch(()=>{});}});
 
 router.patch("/locations/:id/table-capacity",allowRoles("owner","manager"),async(req,res,next)=>{try{
  if(!idOk(req.params.id))return res.status(400).json({error:"Invalid location"});
@@ -122,12 +123,13 @@ router.post("/offline-sync",edit,async(req,res,next)=>{try{
    });
    results.push({eventId,status:"processed",result:replayResult});
   }catch(err){
+   if(transactionUnavailable(err))throw err;
    if(err.code==="EVENT_BUSY"){results.push({eventId,status:"processing"});}
    else{await OfflineEvent.updateOne({_id:record._id,state:{$ne:"processed"}},{$set:{state:"rejected",leaseUntil:null,result:{ok:false,error:String(err.message||"Command failed").slice(0,300)}}});results.push({eventId,status:"rejected",reason:String(err.message||"Command failed").slice(0,300)});}
   }finally{await session.endSession();}
  }
  res.json({results,processed:results.filter(x=>x.status==="processed").length,duplicates:results.filter(x=>x.status==="duplicate").length,rejected:results.filter(x=>x.status==="rejected").length});
- }catch(e){next(e);}});
+ }catch(e){if(transactionUnavailable(e))return res.status(503).json({error:"Offline replay requires MongoDB Atlas or another replica-set database with transaction support"});next(e);}});
 router.post("/queue",async(req,res,next)=>{try{const {locationId,service,customerName,phone}=req.body||{};if(!idOk(locationId))return res.status(400).json({error:"A valid location is required"});const loc=await Location.findOne({_id:locationId,organization:req.user.organization});if(!loc)return res.status(404).json({error:"Location not found"});const day=new Date();day.setHours(0,0,0,0);const count=await QueueTicket.countDocuments({location:loc._id,createdAt:{$gte:day}});const ticket=await QueueTicket.create({location:loc._id,ticketNumber:String(count+1).padStart(3,"0"),service:String(service||"General").slice(0,80),customerName:String(customerName||"").slice(0,120),phone:String(phone||"").slice(0,40)});res.status(201).json({ticket});}catch(e){next(e);}});
 
 router.get("/advertising/campaigns",async(req,res,next)=>{try{const ids=await locations(req.user.organization);res.json({campaigns:await Campaign.find({location:{$in:ids}}).sort({createdAt:-1}).limit(100).lean()});}catch(e){next(e);}});
