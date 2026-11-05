@@ -11,3 +11,6 @@ mobile/android/app/build/
 *.jks
 *.keystore
 mobile/android/app/release-signing.properties
+
+# Firebase project configuration contains project identifiers and should be supplied by CI
+mobile/android/app/google-services.json
