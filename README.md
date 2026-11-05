@@ -20,7 +20,7 @@ cp server/.env.example server/.env
 npm run dev
 ```
 
-Web app: http://localhost:5173 | API: http://localhost:5000/api/health
+Web app: http://localhost:5173 | API readiness: http://localhost:5000/api/health | Liveness: http://localhost:5000/api/health/live
 
 See [MongoDB setup](docs/MONGODB_SETUP.md) for database configuration and API endpoints.
 
@@ -97,11 +97,13 @@ DARAJA_ENV=sandbox
 DARAJA_CONSUMER_KEY=
 DARAJA_CONSUMER_SECRET=
 DARAJA_SHORTCODE=
+# Required only for CustomerBuyGoodsOnline transactions
+DARAJA_TILL_NUMBER=
 DARAJA_PASSKEY=
 DARAJA_CALLBACK_URL=https://your-api-domain.example/api/payments/daraja/callback
 ```
 
-The Daraja callback must be publicly reachable over HTTPS. Start with sandbox credentials. BlueMenu only marks an M-Pesa order paid after a successful provider callback with matching amount and payer phone. Do not manually mark an M-Pesa payment as paid.
+The Daraja callback must be publicly reachable over HTTPS. BlueMenu rejects HTTP callback URLs before initiating a payment. For PayBill, set `DARAJA_TRANSACTION_TYPE=CustomerPayBillOnline`; for Buy Goods, set `DARAJA_TRANSACTION_TYPE=CustomerBuyGoodsOnline` and provide `DARAJA_TILL_NUMBER`. Start with sandbox credentials. BlueMenu only marks an M-Pesa order paid after a successful provider callback with matching amount and payer phone. Do not manually mark an M-Pesa payment as paid.
 
 ### Additional API routes
 
