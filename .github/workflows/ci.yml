@@ -14,7 +14,7 @@ jobs:
           node-version: 20
       - run: npm install
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Check server JavaScript syntax
         run: npm run check -w server
       - run: npm run build
