@@ -1,6 +1,6 @@
 # BlueMenu production hardening and launch runbook
 
-This release adds transactional capacity allocation, Firebase web push, a replayable offline-command endpoint, Daraja reconciliation, paid sponsored-campaign intake, grounded AI menu recommendations, Android foreground BLE scanning, and a signed-APK workflow.
+This release adds transactional capacity allocation, Firebase web push, a replayable offline-command endpoint, Daraja reconciliation, paid sponsored-campaign intake and publisher settlement accounting, grounded AI menu recommendations, Android foreground BLE scanning, and a signed-APK workflow. CI targets Node.js 20; Firebase browser SDK packages are pinned to compatible releases.
 
 ## 1. Database requirements
 
