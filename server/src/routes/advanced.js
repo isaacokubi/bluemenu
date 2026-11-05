@@ -4,6 +4,7 @@ import { Agenda,Attendance,Location,Organization,Reservation,TableBooking,Room,R
 import { requireAuth,allowRoles } from "../middleware/auth.js";
 import { sendOrganizationPush } from "../services/push.js";
 import { initiateStkPush, normalizePhone } from "../services/daraja.js";
+import { replayOfflineCommand } from "../services/offlineSync.js";
 const router=Router();router.use(requireAuth);
 const edit=allowRoles("owner","manager","editor");
 const idOk=id=>mongoose.isValidObjectId(id);
@@ -77,8 +78,42 @@ router.post("/meeting-resolutions",edit,async(req,res,next)=>{try{const {agendaI
 router.patch("/meeting-resolutions/:id",allowRoles("owner","manager"),async(req,res,next)=>{try{if(!idOk(req.params.id)||!["proposed","approved","rejected","deferred"].includes(req.body.status))return res.status(400).json({error:"Valid resolution ID and status are required"});const item=await MeetingResolution.findOne({_id:req.params.id,organization:req.user.organization});if(!item)return res.status(404).json({error:"Resolution not found"});item.status=req.body.status;if(item.status==="approved"){item.approvedBy=req.user._id;item.approvedAt=new Date();}await item.save();await audit(req,"resolution.status_changed","meeting_resolution",item._id,{status:item.status});res.json({resolution:item});}catch(e){next(e);}});
 router.get("/attendance-report",allowRoles("owner","manager"),async(req,res,next)=>{try{const ids=await locations(req.user.organization);const from=req.query.from?new Date(req.query.from):new Date(Date.now()-30*86400000),to=req.query.to?new Date(req.query.to):new Date();if(Number.isNaN(from.getTime())||Number.isNaN(to.getTime())||to<from)return res.status(400).json({error:"Invalid report date range"});const rows=await Attendance.aggregate([{$match:{location:{$in:ids},createdAt:{$gte:from,$lte:to}}},{$group:{_id:"$agenda",registered:{$sum:1},present:{$sum:{$cond:[{$eq:["$attendanceStatus","present"]},1,0]}},absent:{$sum:{$cond:[{$eq:["$attendanceStatus","absent"]},1,0]}}}},{$lookup:{from:"agendas",localField:"_id",foreignField:"_id",as:"agenda"}},{$unwind:{path:"$agenda",preserveNullAndEmptyArrays:true}},{$project:{meeting:"$agenda.title",meetingDate:"$agenda.meetingDate",registered:1,present:1,absent:1,attendanceRate:{$cond:[{$gt:["$registered",0]},{$multiply:[{$divide:["$present","$registered"]},100]},0]}}},{$sort:{meetingDate:-1}}]);res.json({from,to,meetings:rows,totals:rows.reduce((a,r)=>({registered:a.registered+r.registered,present:a.present+r.present,absent:a.absent+r.absent}),{registered:0,present:0,absent:0})});}catch(e){next(e);}});
 router.get("/notifications",async(req,res,next)=>{try{const filter={organization:req.user.organization,$or:[{user:req.user._id},{user:null}]};res.json({notifications:await Notification.find(filter).sort({createdAt:-1}).limit(100).lean()});}catch(e){next(e);}});
-router.post("/notifications",allowRoles("owner","manager"),async(req,res,next)=>{try{const title=String(req.body?.title||"").trim(),message=String(req.body?.message||"").trim();if(!title||!message)return res.status(400).json({error:"Title and message are required"});const notification=await Notification.create({organization:req.user.organization,user:req.body.userId||null,title:title.slice(0,160),message:message.slice(0,2000),type:String(req.body.type||"info").slice(0,30)});await audit(req,"notification.created","notification",notification._id);res.status(201).json({notification,delivery:"in_app",pushConfigured:Boolean(process.env.FCM_SERVER_KEY)});}catch(e){next(e);}});
+router.post("/notifications",allowRoles("owner","manager"),async(req,res,next)=>{try{
+ const title=String(req.body?.title||"").trim(),message=String(req.body?.message||"").trim(),userId=req.body?.userId||null;
+ if(!title||!message)return res.status(400).json({error:"Title and message are required"});
+ if(userId&&!idOk(userId))return res.status(400).json({error:"Invalid target user"});
+ const notification=await Notification.create({organization:req.user.organization,user:userId,title:title.slice(0,160),message:message.slice(0,2000),type:String(req.body.type||"info").slice(0,30)});
+ let push={configured:false,sent:0,failed:0};try{push=await sendOrganizationPush({organization:req.user.organization,user:userId,title:notification.title,body:notification.message,data:{notificationId:notification._id,type:notification.type}});}catch(error){console.error("Push delivery failed:",error.message);}
+ notification.delivery=push.sent>0?"push":"in_app";await notification.save();
+ await audit(req,"notification.created","notification",notification._id,{push});
+ res.status(201).json({notification,delivery:notification.delivery,push});
+ }catch(e){next(e);}});
 router.patch("/notifications/:id/read",async(req,res,next)=>{try{if(!idOk(req.params.id))return res.status(400).json({error:"Invalid notification"});const n=await Notification.findOne({_id:req.params.id,organization:req.user.organization,$or:[{user:req.user._id},{user:null}]});if(!n)return res.status(404).json({error:"Notification not found"});n.readAt=new Date();await n.save();res.json({notification:n});}catch(e){next(e);}});
-router.post("/offline-sync",async(req,res,next)=>{try{const events=Array.isArray(req.body?.events)?req.body.events:[];if(!events.length||events.length>100)return res.status(400).json({error:"Submit between 1 and 100 queued events"});const results=[];for(const ev of events){const eventId=String(ev?.eventId||"").trim(),eventType=String(ev?.eventType||"").trim();if(!eventId||eventId.length>100||!eventType||eventType.length>80){results.push({eventId:eventId||null,status:"rejected",reason:"eventId and eventType are required"});continue;}try{const saved=await OfflineEvent.create({organization:req.user.organization,user:req.user._id,eventId,eventType,payload:ev.payload||{},processedAt:new Date(),result:{accepted:true,queuedForProcessing:false}});results.push({eventId,status:"accepted",id:saved._id});}catch(err){if(err.code===11000){const existing=await OfflineEvent.findOne({organization:req.user.organization,user:req.user._id,eventId}).lean();results.push({eventId,status:"duplicate",id:existing?._id});}else throw err;}}res.json({results,accepted:results.filter(x=>x.status==="accepted").length,duplicates:results.filter(x=>x.status==="duplicate").length});}catch(e){next(e);}});
+router.post("/offline-sync",edit,async(req,res,next)=>{try{
+ const events=Array.isArray(req.body?.events)?req.body.events:[];if(!events.length||events.length>100)return res.status(400).json({error:"Submit between 1 and 100 queued events"});
+ const results=[];
+ for(const ev of events){
+  const eventId=String(ev?.eventId||"").trim(),eventType=String(ev?.eventType||"").trim();
+  if(!eventId||eventId.length>100||!eventType||eventType.length>80){results.push({eventId:eventId||null,status:"rejected",reason:"eventId and eventType are required"});continue;}
+  let record;
+  try{record=await OfflineEvent.create({organization:req.user.organization,user:req.user._id,eventId,eventType,payload:ev.payload||{},state:"queued"});}
+  catch(err){if(err.code!==11000)throw err;record=await OfflineEvent.findOne({organization:req.user.organization,user:req.user._id,eventId});if(!record){results.push({eventId,status:"retry",reason:"Duplicate event is being processed"});continue;}if(record.state==="processed"){results.push({eventId,status:"duplicate",result:record.result});continue;}}
+  const session=await mongoose.startSession();
+  try{
+   let replayResult;
+   await session.withTransaction(async()=>{
+    const locked=await OfflineEvent.findOneAndUpdate({_id:record._id,state:{$in:["queued","rejected"]},$or:[{leaseUntil:null},{leaseUntil:{$lt:new Date()}}]},{$set:{state:"processing",leaseUntil:new Date(Date.now()+60000)},$inc:{attempts:1}},{new:true,session});
+    if(!locked)throw Object.assign(new Error("Event is already being processed"),{code:"EVENT_BUSY"});
+    replayResult=await replayOfflineCommand({organization:req.user.organization,user:req.user._id,eventType,payload:ev.payload||{},session});
+    locked.state="processed";locked.processedAt=new Date();locked.leaseUntil=null;locked.result={ok:true,...replayResult};await locked.save({session});
+   });
+   results.push({eventId,status:"processed",result:replayResult});
+  }catch(err){
+   if(err.code==="EVENT_BUSY"){results.push({eventId,status:"processing"});}
+   else{await OfflineEvent.updateOne({_id:record._id,state:{$ne:"processed"}},{$set:{state:"rejected",leaseUntil:null,result:{ok:false,error:String(err.message||"Command failed").slice(0,300)}}});results.push({eventId,status:"rejected",reason:String(err.message||"Command failed").slice(0,300)});}
+  }finally{await session.endSession();}
+ }
+ res.json({results,processed:results.filter(x=>x.status==="processed").length,duplicates:results.filter(x=>x.status==="duplicate").length,rejected:results.filter(x=>x.status==="rejected").length});
+ }catch(e){next(e);}});
 router.post("/queue",async(req,res,next)=>{try{const {locationId,service,customerName,phone}=req.body||{};if(!idOk(locationId))return res.status(400).json({error:"A valid location is required"});const loc=await Location.findOne({_id:locationId,organization:req.user.organization});if(!loc)return res.status(404).json({error:"Location not found"});const day=new Date();day.setHours(0,0,0,0);const count=await QueueTicket.countDocuments({location:loc._id,createdAt:{$gte:day}});const ticket=await QueueTicket.create({location:loc._id,ticketNumber:String(count+1).padStart(3,"0"),service:String(service||"General").slice(0,80),customerName:String(customerName||"").slice(0,120),phone:String(phone||"").slice(0,40)});res.status(201).json({ticket});}catch(e){next(e);}});
 export default router;
