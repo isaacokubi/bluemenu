@@ -41,7 +41,7 @@ router.post("/location/:slug/lost-found",async(req,res,next)=>{try{
 }catch(e){next(e);}});
 router.post("/location/:slug/lost-found/:id/claim",async(req,res,next)=>{try{
  const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});
- if(!/^[a-f\\d]{24}$/i.test(req.params.id))return res.status(400).json({error:"Invalid lost-and-found record"});
+ if(!/^[a-f\d]{24}$/i.test(req.params.id))return res.status(400).json({error:"Invalid lost-and-found record"});
  const claimant=String(req.body?.claimantName||"").trim().slice(0,120),phone=String(req.body?.claimantPhone||"").trim().slice(0,25),notes=String(req.body?.claimNotes||"").trim().slice(0,500);
  if(!claimant||!phone)return res.status(400).json({error:"Your name and contact phone are required"});
  const item=await InformationItem.findOneAndUpdate({_id:req.params.id,organization:location.organization,location:location._id,type:"lost_found",published:true,"metadata.itemStatus":"open","metadata.claimStatus":"none"},{$set:{"metadata.claimStatus":"requested","metadata.claimantName":claimant,"metadata.claimantPhone":phone,"metadata.claimNotes":notes}},{new:true}).select("_id");
