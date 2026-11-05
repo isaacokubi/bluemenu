@@ -35,14 +35,8 @@ See [MongoDB setup](docs/MONGODB_SETUP.md) for database configuration and API en
 
 See [the production readiness runbook](docs/PRODUCTION_READINESS.md) for Firebase push setup, transaction-safe hotel/table allocation, offline command replay, background BLE, signed APK secrets, M-Pesa renewal prompts, advertising payment lifecycle, AI menu tools and pilot acceptance procedures. External provider credentials and real-device tests are required before production sign-off.
 
-## Remaining proposal roadmap
-- Hotel room reservations, inventory/stock controls and restaurant table booking.
-- School meeting minutes, resolutions, task ownership and richer attendance reports.
-- Visitor books, queue tickets, appointments, lost-and-found and feedback.
-- Advertisement campaigns/marketplace, opt-in proximity promotions and digital signage.
-- AI menu translation/recommendations and meeting notes/action extraction.
-- Push notifications, richer offline synchronization and Android field-tested background discovery.
-- Production hardening, accessibility review, pilot measurement and data-protection review.
+## Remaining production acceptance
+Core booking allocation, push delivery plumbing, offline command replay, opt-in Android foreground BLE scanning, paid campaign workflow, AI menu tools and scheduled customer-approved M-Pesa renewal prompts are implemented. Remaining work is environment and field acceptance: configure production MongoDB/Firebase/Daraja/OpenAI credentials, supply Android signing keystore secrets, deploy the API and trusted renewal scheduler, then run the physical-device, concurrency, security/privacy and pilot tests in [the production runbook](docs/PRODUCTION_READINESS.md). These provider/device gates are not considered complete merely because the code compiles.
 
 Never commit secrets; configure environment variables in deployment platforms.
 
