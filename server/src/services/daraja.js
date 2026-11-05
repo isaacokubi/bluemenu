@@ -106,7 +106,8 @@ export async function queryStkPush(checkoutRequestId) {
   });
   return parseProviderResponse(response, "Daraja STK query failed");
 }
-\nexport function verifyDarajaCallback(body) {
+
+export function verifyDarajaCallback(body) {
   const callback = body?.Body?.stkCallback;
   if (!callback?.CheckoutRequestID || !Number.isInteger(Number(callback.ResultCode)) || Number(callback.ResultCode) < 0) return null;
   const metadata = callback.CallbackMetadata?.Item || [];
