@@ -4,3 +4,10 @@ dist/
 server/.env
 .DS_Store
 *.log
+
+# Android build outputs and private signing material
+mobile/android/.gradle/
+mobile/android/app/build/
+*.jks
+*.keystore
+mobile/android/app/release-signing.properties
