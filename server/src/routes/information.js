@@ -2,19 +2,12 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import { InformationItem,Location,AuditLog } from "../models/index.js";
 import { requireAuth,allowRoles } from "../middleware/auth.js";
-import { isSafeInformationUrl,parsePublicationWindow } from "../services/informationValidation.js";
+import { isSafeInformationUrl,parsePublicationWindow,sanitizeInformationMetadata } from "../services/informationValidation.js";
 const router=Router();
 router.use(requireAuth);
 const editable=allowRoles("owner","manager","editor");
 const validId=id=>mongoose.isValidObjectId(id);
-function sanitizeInformationMetadata(input,type){
- const value=input&&typeof input==="object"&&!Array.isArray(input)?input:{};
- const fields=type==="directory"?["category","contactName","contactPhone","email","office","building","floor","room","openingHours","website"]:["category","recordType","itemStatus","foundAt","dateLost","dateFound","contactName","contactPhone","claimStatus","claimantName","claimantPhone","claimNotes"];
- const output={};
- for(const field of fields){if(value[field]!==undefined)output[field]=String(value[field]).trim().slice(0,field==="claimNotes"?500:180);}
- if(type==="lost_found"){if(!["lost","found"].includes(output.recordType))output.recordType="lost";if(!["open","claim_requested","returned","closed"].includes(output.itemStatus))output.itemStatus="open";if(!["none","requested","approved","rejected"].includes(output.claimStatus))output.claimStatus="none";}
- return output;
-}
+
 async function audit(req,action,id,details={}){try{await AuditLog.create({organization:req.user.organization,actor:req.user._id,action,entityType:"information",entityId:String(id||""),details,ipAddress:req.ip,userAgent:String(req.get("user-agent")||"").slice(0,300)});}catch(error){console.error("Information audit failed:",error.message);}}
 router.get("/information",async(req,res,next)=>{try{const ids=await Location.find({organization:req.user.organization}).distinct("_id");const items=await InformationItem.find({organization:req.user.organization,$or:[{location:null},{location:{$in:ids}}]}).populate("location","name publicSlug").sort({createdAt:-1}).limit(300).lean();res.json({items});}catch(error){next(error);}});
 router.post("/information",editable,async(req,res,next)=>{try{
