@@ -19,6 +19,7 @@ router.patch("/reservations/:id",edit,async(req,res,next)=>{let session;try{
  const nextStatus=String(req.body?.status||reservation.status);
  if(!["requested","confirmed","checked_in","checked_out","cancelled"].includes(nextStatus))return res.status(400).json({error:"Invalid reservation status"});
  if(["checked_out","cancelled"].includes(reservation.status)&&nextStatus!==reservation.status)return res.status(409).json({error:"Checked-out or cancelled reservations cannot be reopened"});
+ if(nextStatus==="checked_out"&&reservation.status!=="checked_in")return res.status(409).json({error:"Only checked-in reservations can be checked out"});
  if(req.body.paymentStatus!==undefined)return res.status(403).json({error:"Payment status requires verified provider processing"});
  if(["confirmed","checked_in"].includes(nextStatus)&&!reservation.assignedRooms?.length){
    const start=new Date(reservation.checkIn);start.setUTCHours(0,0,0,0);const end=new Date(reservation.checkOut);end.setUTCHours(0,0,0,0);
