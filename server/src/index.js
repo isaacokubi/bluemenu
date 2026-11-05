@@ -24,6 +24,8 @@ app.use(cors({origin:(origin,callback)=>{if(!origin||allowedOrigins.includes(ori
 const authLimiter=rateLimit({windowMs:15*60*1000,limit:12,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many sign-in or recovery attempts. Try again later."}});
 const publicLimiter=rateLimit({windowMs:15*60*1000,limit:120,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many requests. Please try again later."}});
 app.use(express.json({ limit: "1mb" }));
+const apiLimiter=rateLimit({windowMs:60*1000,limit:240,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many API requests. Please retry shortly."}});
+app.use("/api",apiLimiter);
 
 const databaseReady = () => mongoose.connection.readyState === 1;
 
@@ -70,6 +72,7 @@ app.use((err, _req, res, _next) => {
 app.use((req, res) => res.status(404).json({ error: "Route not found", path: req.path }));
 
 async function start() {
+  if (process.env.NODE_ENV === "production" && String(process.env.JWT_SECRET||"").length < 32) { console.error("JWT_SECRET must contain at least 32 characters in production."); process.exit(1); }
   if (!process.env.MONGODB_URI) {
     console.error("MONGODB_URI is missing. Copy server/.env.example to server/.env and configure MongoDB Atlas.");
     process.exit(1);
