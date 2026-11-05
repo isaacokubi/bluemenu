@@ -26,3 +26,7 @@ The app currently scans in the foreground for 30 seconds at a time. It does not 
 - The companion currently supports iBeacon UUID manufacturer frames. Eddystone, custom BLE service advertisements, background scanning, notification delivery and store signing are future work.
 - The app opens public content in the phone's browser; it does not embed a webview or collect customer identity.
 - Configure HTTPS for production APIs. Use a LAN IP only for local device testing.
+
+## CI debug APK
+
+GitHub Actions builds a debug APK for this companion. Open the latest successful **BlueMenu CI** run on the repository's Actions page and download the artifact named `bluemenu-nearby-debug-apk`. It is a debug build, not a Play Store release. Set your deployed API URL in the Gradle property when producing a production-configured build, and test with your own beacon hardware before distributing it.
