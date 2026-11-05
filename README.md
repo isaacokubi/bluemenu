@@ -155,3 +155,6 @@ Configure `OPENAI_API_KEY` and optionally `AI_MODEL` on the server to enable:
 - `POST /api/ai/menu-description` — draft a menu description in English or Kiswahili using only supplied details.
 - `POST /api/ai/meeting-assistant` — structure agendas, summarize meeting notes, draft minutes or extract action items from supplied text.
 AI endpoints require an authenticated workspace user, enforce input size limits and do not expose provider credentials to the browser. Review AI-generated content before publishing.
+
+## Advertising and local discovery
+Workspace owners/managers can create and publish location-level campaigns under `/api/workspace/campaigns`. Public location pages fetch active campaigns and count impressions/clicks in aggregate. Campaign destinations must be relative paths or HTTPS URLs. Nearby offers are shown on the venue's public page; BlueMenu does not silently push promotions to nearby phones.
