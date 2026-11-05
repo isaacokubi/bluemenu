@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { Order,Campaign,Location,PaymentTransaction } from "../models/index.js";
 import { Subscription } from "../models/Subscription.js";
-import { normalizePhone, verifyDarajaCallback } from "../services/daraja.js";
+import { normalizePhone, verifyDarajaCallback, queryStkPush } from "../services/daraja.js";
 
 const router = Router();
 
@@ -78,4 +78,21 @@ router.post("/daraja/callback", async (req, res, next) => {
   }
 });
 
+
+router.post("/daraja/reconcile",async(req,res,next)=>{try{
+ const expected=String(process.env.DARAJA_RECONCILE_SECRET||""),provided=String(req.get("x-reconcile-secret")||"");
+ if(!expected||provided.length!==expected.length||!require("node:crypto").timingSafeEqual(Buffer.from(provided),Buffer.from(expected)))return res.status(401).json({error:"Unauthorized reconciliation request"});
+ const cutoff=new Date(Date.now()-2*60*1000),[subscriptions,campaigns]=await Promise.all([
+  Subscription.find({paymentStatus:"pending",checkoutRequestId:{$exists:true,$ne:null},updatedAt:{$lte:cutoff}}).limit(50),
+  Campaign.find({paymentStatus:"pending",checkoutRequestId:{$exists:true,$ne:null},updatedAt:{$lte:cutoff}}).limit(50)
+ ]);
+ const results=[];
+ for(const entity of [...subscriptions.map(value=>({value,kind:"subscription"})),...campaigns.map(value=>({value,kind:"campaign"}))]){
+  try{const query=await queryStkPush(entity.value.checkoutRequestId);const code=String(query.ResultCode??"");
+   if(code&&code!=="0"){entity.value.paymentStatus="failed";await entity.value.save();results.push({kind:entity.kind,id:String(entity.value._id),status:"failed",resultDescription:String(query.ResultDesc||"")});}
+   else results.push({kind:entity.kind,id:String(entity.value._id),status:"awaiting_verified_callback",resultDescription:String(query.ResultDesc||"")});
+  }catch(error){results.push({kind:entity.kind,id:String(entity.value._id),status:"query_error",reason:String(error.message||"").slice(0,200)});}
+ }
+ res.json({checked:results.length,results,note:"A successful STK query is not used to activate a plan or campaign. Activation requires the verified callback with matching receipt, amount and phone."});
+ }catch(e){next(e);}});
 export default router;
