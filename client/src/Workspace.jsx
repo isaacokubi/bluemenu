@@ -1,6 +1,6 @@
 import { useEffect,useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
-import { Copy,ExternalLink,ClipboardList,Users,CheckCircle2,ChevronDown,MessageSquare,History } from "lucide-react";
+import { Copy,ExternalLink,ClipboardList,Users,CheckCircle2,ChevronDown,MessageSquare,History,Bluetooth } from "lucide-react";
 import { ArrowLeft,LogIn,LogOut,Plus,Store,Utensils,CalendarDays,Globe,Trash2,RefreshCw } from "lucide-react";
 const API="/api";
 async function request(path,{token,...options}={}){const response=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{}),...(options?.headers||{})}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"Request failed");return data;}
