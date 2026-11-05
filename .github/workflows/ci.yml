@@ -33,6 +33,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Configure Firebase Android (optional secret)
+        env:
+          FIREBASE_ANDROID_CONFIG_BASE64: ${{ secrets.FIREBASE_ANDROID_CONFIG_BASE64 }}
+        run: |
+          if [ -n "$FIREBASE_ANDROID_CONFIG_BASE64" ]; then
+            echo "$FIREBASE_ANDROID_CONFIG_BASE64" | base64 --decode > mobile/android/app/google-services.json
+          fi
       - name: Build BlueMenu Nearby APK
         run: gradle -p mobile/android :app:assembleDebug -PBLUEMENU_API_BASE_URL=https://example.com
       - name: Upload debug APK
@@ -43,35 +50,57 @@ jobs:
           if-no-files-found: error
 
   release-apk:
-    if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
     runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      FIREBASE_ANDROID_CONFIG_BASE64: ${{ secrets.FIREBASE_ANDROID_CONFIG_BASE64 }}
+      BLUEMENU_API_BASE_URL: ${{ vars.BLUEMENU_API_BASE_URL }}
     steps:
       - uses: actions/checkout@v4
+      - name: Check release configuration
+        id: config
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ] && [ -n "$BLUEMENU_API_BASE_URL" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Signed release skipped: configure Android signing secrets and BLUEMENU_API_BASE_URL repository variable."
+          fi
       - uses: actions/setup-java@v4
+        if: steps.config.outputs.ready == 'true'
         with:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        if: steps.config.outputs.ready == 'true'
         with:
           packages: platform-tools
       - name: Install Android SDK platform
+        if: steps.config.outputs.ready == 'true'
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.config.outputs.ready == 'true'
         with:
           gradle-version: "8.9"
-      - name: Prepare release keystore
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      - name: Prepare Firebase configuration
+        if: steps.config.outputs.ready == 'true'
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/bluemenu-release.keystore"
+          if [ -n "$FIREBASE_ANDROID_CONFIG_BASE64" ]; then
+            echo "$FIREBASE_ANDROID_CONFIG_BASE64" | base64 --decode > mobile/android/app/google-services.json
+          fi
+      - name: Prepare release keystore
+        if: steps.config.outputs.ready == 'true'
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/bluemenu-release.keystore"
       - name: Build signed release APK
+        if: steps.config.outputs.ready == 'true'
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/bluemenu-release.keystore
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle -p mobile/android :app:assembleRelease -PBLUEMENU_API_BASE_URL=${{ vars.BLUEMENU_API_BASE_URL }}
+        run: gradle -p mobile/android :app:assembleRelease -PBLUEMENU_API_BASE_URL="$BLUEMENU_API_BASE_URL"
       - uses: actions/upload-artifact@v4
+        if: steps.config.outputs.ready == 'true'
         with:
           name: bluemenu-nearby-signed-release-apk
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
