@@ -21,9 +21,17 @@ export async function enablePushNotifications(accessToken) {
     body: JSON.stringify({ token, platform: "web" })
   });
   if (!response.ok) throw new Error("Unable to register this browser for push notifications");
-  return onMessage(messaging, payload => {
+  const unsubscribe = onMessage(messaging, payload => {
     const title = payload.notification?.title || "BlueMenu";
     const body = payload.notification?.body || "You have a new workspace update.";
     if (Notification.permission === "granted") new Notification(title, { body, icon: "/favicon.ico" });
   });
+  return () => {
+    unsubscribe();
+    fetch("/api/push/register", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
+      body: JSON.stringify({ token })
+    }).catch(() => {});
+  };
 }
