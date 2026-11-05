@@ -202,3 +202,17 @@ button:disabled{cursor:not-allowed}
  .agenda-row>small{font-size:9px}
 }
 @media(prefers-reduced-motion:reduce){.text-link:hover{gap:9px}}
+
+
+/* Release accessibility and compact desktop navigation */
+.skip-link{position:absolute;left:16px;top:-60px;z-index:100;background:#173d34;color:#fff;padding:11px 15px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none}
+.skip-link:focus{top:12px}
+#main-content:focus{outline:none}
+@media(min-width:701px) and (max-width:1120px){
+  .topbar{padding-left:3%;padding-right:3%;gap:18px}
+  .nav{gap:17px}
+  .top-actions{gap:10px}
+  .status{font-size:9px}
+  .get-started{padding:10px 12px;font-size:11px}
+  .brand{font-size:21px}
+}
