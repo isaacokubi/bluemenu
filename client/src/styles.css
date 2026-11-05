@@ -30,3 +30,6 @@
 @media(max-width:700px){.billing-summary{align-items:flex-start;flex-direction:column}.billing-plans{grid-template-columns:1fr}.billing-plans>div{grid-template-columns:1fr auto;align-items:center}.billing-plans>div>small{grid-column:1}.billing-plans button{grid-column:2;grid-row:1/4}}
 
 .billing-phone{display:flex;max-width:340px;margin:14px 0}.billing-cycle{display:flex;gap:7px;margin:12px 0}.billing-cycle button{border:1px solid #dbe8dc;border-radius:8px;padding:9px 13px;background:white;color:#45654e;font-size:11px;font-weight:700}.billing-cycle button.selected{background:#1c4a38;color:white;border-color:#1c4a38}
+
+.insights-panel{margin:0 0 22px}.insights-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.insights-grid>div{background:#f7faf7;border:1px solid #e7eee7;border-radius:9px;padding:15px;display:grid;gap:8px}.insights-grid small{font-size:10px;color:#809087}.insights-grid b{font:800 20px Manrope;color:#254e38}
+@media(max-width:700px){.insights-grid{grid-template-columns:repeat(2,1fr)}.insights-grid b{font-size:17px}}
