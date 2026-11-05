@@ -62,7 +62,13 @@ router.patch("/table-bookings/:id",allowRoles("owner","manager"),async(req,res,n
    const slotMs=30*60*1000,slotStart=new Date(Math.floor(new Date(booking.bookingAt).getTime()/slotMs)*slotMs);
    session=await mongoose.startSession();session.startTransaction();
    let slot=await TableSlot.findOne({location:booking.location,slotStart}).session(session);
-   if(!slot){[slot]=await TableSlot.create([{location:booking.location,slotStart,capacity:location.tableCapacity||50,reservedCovers:0}],{session});}
+   if(!slot){[slot]=await TableSlot.create([{location:booking.location,slotStart,capacity:location.tableCapacity||50,reservedCovers:0,legacyImported:false}],{session});}
+   if(!slot.legacyImported){
+     const legacyBookings=await TableBooking.find({_id:{$ne:booking._id},location:booking.location,bookingAt:{$gte:slotStart,$lt:new Date(slotStart.getTime()+slotMs)},status:{$in:["confirmed","seated"]},capacityHeld:{$ne:true}}).session(session);
+     const legacyCovers=legacyBookings.reduce((total,item)=>total+Number(item.partySize||0),0);
+     if(legacyBookings.length)await TableBooking.updateMany({_id:{$in:legacyBookings.map(item=>item._id)}},{$set:{capacityHeld:true,capacitySlot:slotStart}},{session});
+     slot.reservedCovers=legacyCovers;slot.legacyImported=true;await slot.save({session});
+   }
    const updated=await TableSlot.findOneAndUpdate({_id:slot._id,$expr:{$lte:[{$add:["$reservedCovers",booking.partySize]},"$capacity"]}},{$inc:{reservedCovers:booking.partySize}},{new:true,session});
    if(!updated){await session.abortTransaction();return res.status(409).json({error:"This time slot has reached its table capacity"});}
    booking.capacitySlot=slotStart;booking.capacityHeld=true;booking.confirmedAt=new Date();booking.status=nextStatus;await booking.save({session});await session.commitTransaction();
