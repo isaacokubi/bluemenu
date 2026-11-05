@@ -1,4 +1,5 @@
-import "dotenv/config";
+import {config} from "dotenv";
+config({path:new URL("../.env",import.meta.url)});
 import mongoose from "mongoose";
 
 const uri=process.env.MONGODB_URI;
