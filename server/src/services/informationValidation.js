@@ -2,7 +2,7 @@ export function isSafeInformationUrl(value) {
   const url = String(value || "").trim();
   if (!url) return true;
   if (/^https:\/\/[^\s]+$/i.test(url)) return true;
-  return /^\/(?!\/)/.test(url) && !url.includes("\\") && !/[\r\n]/.test(url);
+  return /^\/(?!\/)/.test(url) && !url.includes("\") && !/[\r\n]/.test(url);
 }
 
 export function parsePublicationWindow(startsAt, endsAt) {
@@ -37,8 +37,8 @@ export function validateLostFoundSubmission(input = {}) {
   const title = String(input.title || "").trim().slice(0, 180);
   const body = String(input.body || "").trim().slice(0, 2000);
   const contactPhone = String(input.contactPhone || "").trim().slice(0, 25);
-  const normalizedPhone = contactPhone.replace(/[\\s()-]/g, "");
-  if (!title || !body || !/^\\+?\\d{7,15}$/.test(normalizedPhone)) {
+  const normalizedPhone = contactPhone.replace(/[\s()-]/g, "");
+  if (!title || !body || !/^\+?\d{7,15}$/.test(normalizedPhone)) {
     return { valid: false, error: "Title, description and a valid contact phone number are required" };
   }
   return {
