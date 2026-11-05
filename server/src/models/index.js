@@ -57,3 +57,13 @@ export const QueueTicket=model("QueueTicket",queueTicketSchema);
 export const Campaign=model("Campaign",campaignSchema);
 export const Reservation=model("Reservation",reservationSchema);
 export const TableBooking=model("TableBooking",tableBookingSchema);
+
+const resolutionSchema=new Schema({agenda:{type:Schema.Types.ObjectId,ref:"Agenda",required:true,index:true},organization:{type:Schema.Types.ObjectId,ref:"Organization",required:true,index:true},title:{type:String,required:true,trim:true},description:String,decision:{type:String,required:true,trim:true},status:{type:String,enum:["proposed","approved","rejected","deferred"],default:"proposed",index:true},proposedBy:{type:Schema.Types.ObjectId,ref:"User"},approvedBy:{type:Schema.Types.ObjectId,ref:"User"},approvedAt:Date},{timestamps:true});
+const notificationSchema=new Schema({organization:{type:Schema.Types.ObjectId,ref:"Organization",required:true,index:true},user:{type:Schema.Types.ObjectId,ref:"User",index:true},title:{type:String,required:true},message:{type:String,required:true},type:{type:String,default:"info"},readAt:Date,delivery:{type:String,enum:["in_app","push"],default:"in_app"},providerId:String},{timestamps:true});
+const offlineEventSchema=new Schema({organization:{type:Schema.Types.ObjectId,ref:"Organization",required:true,index:true},user:{type:Schema.Types.ObjectId,ref:"User",required:true},eventId:{type:String,required:true},eventType:{type:String,required:true},payload:{type:Schema.Types.Mixed,default:{}},processedAt:Date,result:{type:Schema.Types.Mixed}},{timestamps:true});offlineEventSchema.index({organization:1,user:1,eventId:1},{unique:true});
+const roomSchema=new Schema({location:{type:Schema.Types.ObjectId,ref:"Location",required:true,index:true},roomNumber:{type:String,required:true,trim:true},roomType:{type:String,required:true,trim:true},capacity:{type:Number,min:1,default:2},active:{type:Boolean,default:true},ratePerNight:{type:Number,min:0,default:0},currency:{type:String,default:"KES"}},{timestamps:true});roomSchema.index({location:1,roomNumber:1},{unique:true});
+export const MeetingResolution=model("MeetingResolution",resolutionSchema);
+export const Notification=model("Notification",notificationSchema);
+export const OfflineEvent=model("OfflineEvent",offlineEventSchema);
+export const Room=model("Room",roomSchema);
+
