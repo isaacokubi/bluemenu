@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { Subscription,PLAN_CATALOG } from "../models/Subscription.js";
-import { Organization } from "../models/index.js";
+import crypto from "node:crypto";
+import { Organization,Notification } from "../models/index.js";
+import { sendOrganizationPush } from "../services/push.js";
 import { initiateStkPush } from "../services/daraja.js";
 import { normalizePhone } from "../services/daraja.js";
 import { requireAuth,allowRoles } from "../middleware/auth.js";
@@ -35,4 +37,22 @@ router.post("/plan-request",requireAuth,allowRoles("owner"),async(req,res,next)=
  res.json({message:"Plan request recorded. Your current access remains unchanged until payment is confirmed.",requestedPlan:plan,billingCycle:cycle});
 }catch(e){next(e);}});
 router.post("/cancel-request",requireAuth,allowRoles("owner"),async(req,res,next)=>{try{const subscription=await Subscription.findOne({organization:req.user.organization});if(!subscription)return res.status(404).json({error:"Subscription not found"});subscription.cancellationRequestedAt=new Date();await subscription.save();res.json({message:"Cancellation request recorded. Access remains active through the paid period.",cancellationRequestedAt:subscription.cancellationRequestedAt});}catch(e){next(e);}});
+
+router.post("/reconcile",async(req,res,next)=>{try{
+ const expected=String(process.env.BILLING_RECONCILE_SECRET||""),provided=String(req.get("x-billing-reconcile-secret")||"");
+ if(!expected||provided.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(provided),Buffer.from(expected)))return res.status(401).json({error:"Unauthorized billing reconciliation"});
+ const now=new Date(),subscriptions=await Subscription.find({status:{$in:["active","past_due"]},currentPeriodEndsAt:{$lte:now}}).limit(500);
+ let pastDue=0,suspended=0;
+ for(const subscription of subscriptions){
+  if(subscription.status==="active"){
+   subscription.status="past_due";pastDue++;
+   const organization=await Organization.findById(subscription.organization).select("name");
+   const title="BlueMenu subscription payment due",message="Your "+(organization?.name||"workspace")+" subscription period has ended. Renew to avoid service suspension.";
+   await Notification.create({organization:subscription.organization,title,message,type:"billing"});
+   try{await sendOrganizationPush({organization:subscription.organization,title,body:message,data:{type:"billing"}});}catch(error){console.warn("Billing push failed:",error.message);}
+  }else if(subscription.graceEndsAt&&subscription.graceEndsAt<=now){subscription.status="suspended";suspended++;}
+  await subscription.save();
+ }
+ res.json({checked:subscriptions.length,pastDue,suspended,note:"Standard Daraja STK Push requires a customer PIN for each charge; this job enforces expiry/grace policy and does not silently debit customers."});
+ }catch(e){next(e);}});
 export default router;
