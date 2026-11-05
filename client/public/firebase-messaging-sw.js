@@ -3,10 +3,10 @@ importScripts("https://www.gstatic.com/firebasejs/11.0.2/firebase-messaging-comp
 
 const firebaseConfigPromise = fetch("/api/push/config")
   .then(response => response.ok ? response.json() : Promise.reject(new Error("Firebase config unavailable")))
-  .then(({ firebase }) => {
-    if (!firebase?.apiKey || !firebase?.projectId) throw new Error("Firebase web messaging is not configured");
-    firebase.initializeApp(firebase);
-    const messaging = firebase.messaging();
+  .then(({ firebase: firebaseConfig }) => {
+    if (!firebaseConfig?.apiKey || !firebaseConfig?.projectId || !firebaseConfig?.messagingSenderId || !firebaseConfig?.appId) throw new Error("Firebase web messaging is not configured");
+    self.firebase.initializeApp(firebaseConfig);
+    const messaging = self.firebase.messaging();
     messaging.onBackgroundMessage(payload => {
       const title = payload.notification?.title || "BlueMenu";
       const options = {
