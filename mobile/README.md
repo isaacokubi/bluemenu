@@ -30,3 +30,8 @@ Foreground scans run for 30 seconds. The optional background scanner is a user-s
 ## CI debug APK
 
 GitHub Actions builds a debug APK for this companion. Open the latest successful **BlueMenu CI** run on the repository's Actions page and download the artifact named `bluemenu-nearby-debug-apk`. It is a debug build, not a Play Store release. A signed release workflow is enabled when the GitHub keystore secrets and BLUEMENU_API_BASE_URL repository variable are configured. Firebase Android config is supplied as the FIREBASE_ANDROID_CONFIG_BASE64 secret; the API also requires FCM_SERVICE_ACCOUNT_JSON. Test with physical beacon hardware and measure battery use before distribution.
+
+
+### Supported beacon formats
+
+BlueMenu Nearby recognizes Apple iBeacon manufacturer advertisements and Eddystone-UID service-data advertisements. For Eddystone-UID, register the discovery identifier as eddystone-uid:<namespace-hex>:<instance-hex> using exactly 20 hexadecimal namespace characters and 12 hexadecimal instance characters. Configure the beacon to advertise service UUID FEAA, frame type 0x00, namespace and instance. Beacon resolution requires the API to be reachable; the public QR/link route remains the universal fallback.
