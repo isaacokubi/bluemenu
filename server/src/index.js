@@ -12,6 +12,7 @@ import paymentRoutes from "./routes/payments.js";
 import subscriptionRoutes from "./routes/subscriptions.js";
 import aiRoutes from "./routes/ai.js";
 import advancedRoutes from "./routes/advanced.js";
+import productionRoutes from "./routes/production.js";
 import publicBookingRoutes from "./routes/public-bookings.js";
 
 const app = express();
@@ -59,6 +60,7 @@ app.use("/api/workspace", workspaceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/workspace", productionRoutes);
 app.use("/api/workspace", advancedRoutes);
 app.use("/api/admin", adminRoutes);
 app.use((err, _req, res, _next) => {
