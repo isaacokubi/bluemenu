@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Order, Campaign } from "../models/index.js";
+import { Order, Campaign, EventTicket, InformationItem } from "../models/index.js";
 import { Subscription } from "../models/Subscription.js";
 import { normalizePhone, verifyDarajaCallback } from "../services/daraja.js";
 
@@ -44,6 +44,22 @@ router.post("/daraja/callback", async (req, res, next) => {
       }else campaign.paymentStatus="failed";
       await campaign.save();
       return res.status(200).json({ResultCode:0,ResultDesc:"Campaign payment callback processed"});
+    }
+
+    const eventTicket=await EventTicket.findOne({checkoutRequestId:result.checkoutRequestId});
+    if(eventTicket){
+      if(eventTicket.paymentStatus!=="pending")return res.status(200).json({ResultCode:0,ResultDesc:"Callback acknowledged"});
+      if(result.resultCode===0){
+        const callbackPhone=normalizePhone(result.phone),expectedPhone=normalizePhone(eventTicket.paymentPhone);
+        const validReceipt=Boolean(result.receipt&&/^[A-Z0-9]{6,20}$/i.test(result.receipt));
+        const validAmount=Number.isSafeInteger(result.amount)&&result.amount===eventTicket.amountKES;
+        if(!validReceipt||!validAmount||!callbackPhone||callbackPhone!==expectedPhone){console.warn("Daraja event ticket callback validation failed",String(eventTicket._id));return res.status(200).json({ResultCode:0,ResultDesc:"Callback acknowledged"});}
+        await EventTicket.updateOne({_id:eventTicket._id,paymentStatus:"pending"},{$set:{paymentStatus:"paid",paymentReference:result.receipt}});
+      }else{
+        const failed=await EventTicket.findOneAndUpdate({_id:eventTicket._id,paymentStatus:"pending"},{$set:{paymentStatus:"failed"}},{new:true});
+        if(failed)await InformationItem.updateOne({_id:failed.event,organization:failed.organization,ticketsIssued:{$gt:0}},{$inc:{ticketsIssued:-1}});
+      }
+      return res.status(200).json({ResultCode:0,ResultDesc:"Event ticket callback processed"});
     }
 
     const order = await Order.findOne({ checkoutRequestId: result.checkoutRequestId });
