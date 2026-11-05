@@ -1,6 +1,6 @@
 import { Router } from "express";
 import mongoose from "mongoose";
-import { Agenda,Attendance,Location,Organization,Reservation,TableBooking,Room,RoomNight,TableSlot,DeviceToken,MeetingResolution,Notification,OfflineEvent,QueueTicket,AuditLog } from "../models/index.js";
+import { Agenda,Attendance,Location,Organization,Reservation,TableBooking,Room,RoomNight,TableSlot,DeviceToken,MeetingResolution,Notification,OfflineEvent,QueueTicket,AuditLog,Campaign } from "../models/index.js";
 import { requireAuth,allowRoles } from "../middleware/auth.js";
 import { sendOrganizationPush } from "../services/push.js";
 import { initiateStkPush, normalizePhone } from "../services/daraja.js";
@@ -116,4 +116,25 @@ router.post("/offline-sync",edit,async(req,res,next)=>{try{
  res.json({results,processed:results.filter(x=>x.status==="processed").length,duplicates:results.filter(x=>x.status==="duplicate").length,rejected:results.filter(x=>x.status==="rejected").length});
  }catch(e){next(e);}});
 router.post("/queue",async(req,res,next)=>{try{const {locationId,service,customerName,phone}=req.body||{};if(!idOk(locationId))return res.status(400).json({error:"A valid location is required"});const loc=await Location.findOne({_id:locationId,organization:req.user.organization});if(!loc)return res.status(404).json({error:"Location not found"});const day=new Date();day.setHours(0,0,0,0);const count=await QueueTicket.countDocuments({location:loc._id,createdAt:{$gte:day}});const ticket=await QueueTicket.create({location:loc._id,ticketNumber:String(count+1).padStart(3,"0"),service:String(service||"General").slice(0,80),customerName:String(customerName||"").slice(0,120),phone:String(phone||"").slice(0,40)});res.status(201).json({ticket});}catch(e){next(e);}});
+
+router.get("/advertising/campaigns",async(req,res,next)=>{try{const ids=await locations(req.user.organization);res.json({campaigns:await Campaign.find({location:{$in:ids}}).sort({createdAt:-1}).limit(100).lean()});}catch(e){next(e);}});
+router.post("/advertising/campaigns",allowRoles("owner","manager"),async(req,res,next)=>{try{
+ const {locationId,title,message,sponsorName,price,phone,targetUrl,startsAt,endsAt}=req.body||{};
+ if(!idOk(locationId)||!String(title||"").trim()||!String(message||"").trim()||!String(sponsorName||"").trim())return res.status(400).json({error:"Location, title, message and sponsor name are required"});
+ const amount=Math.round(Number(price)),normalized=normalizePhone(phone);
+ if(!Number.isSafeInteger(amount)||amount<1||amount>1000000||!normalized)return res.status(400).json({error:"Provide a valid campaign price (KES) and Kenyan M-Pesa phone"});
+ const loc=await Location.findOne({_id:locationId,organization:req.user.organization});if(!loc)return res.status(404).json({error:"Location not found"});
+ if(targetUrl&&!/^https:\/\//i.test(targetUrl))return res.status(400).json({error:"Target URL must use HTTPS"});
+ const campaign=await Campaign.create({location:loc._id,title:String(title).trim().slice(0,160),message:String(message).trim().slice(0,2000),sponsorName:String(sponsorName).trim().slice(0,160),price:amount,targetUrl:String(targetUrl||"").slice(0,500),startsAt:startsAt?new Date(startsAt):undefined,endsAt:endsAt?new Date(endsAt):undefined,published:false,paymentStatus:"pending"});
+ try{const stk=await initiateStkPush({phone:normalized,amount,accountReference:"AD-"+String(campaign._id).slice(-8),transactionDesc:"BlueMenu sponsored campaign"});campaign.checkoutRequestId=stk.checkoutRequestId;campaign.checkoutPhone=normalized;await campaign.save();res.status(202).json({campaign,awaitingPin:true,message:stk.customerMessage});}
+ catch(error){campaign.paymentStatus="failed";await campaign.save();throw error;}
+ }catch(e){next(e);}});
+router.patch("/advertising/campaigns/:id/review",allowRoles("owner","manager"),async(req,res,next)=>{try{
+ if(!idOk(req.params.id)||!["approved","rejected"].includes(req.body?.reviewStatus))return res.status(400).json({error:"Valid campaign and review status required"});
+ const ids=await locations(req.user.organization),campaign=await Campaign.findOne({_id:req.params.id,location:{$in:ids}});
+ if(!campaign)return res.status(404).json({error:"Campaign not found"});
+ campaign.reviewStatus=req.body.reviewStatus;campaign.published=campaign.reviewStatus==="approved"&&campaign.paymentStatus==="paid";
+ await campaign.save();await audit(req,"campaign.reviewed","campaign",campaign._id,{reviewStatus:campaign.reviewStatus,published:campaign.published});
+ res.json({campaign,message:campaign.published?"Paid campaign approved and published":"Campaign review saved"});
+ }catch(e){next(e);}});
 export default router;
