@@ -3,7 +3,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Organization,Location,User,Invite,PasswordReset } from "../models/index.js";
 import crypto from "node:crypto";
-import { requireAuth } from "../middleware/auth.js";\nimport { Subscription } from "../models/Subscription.js";
+import { requireAuth } from "../middleware/auth.js";
+import { Subscription } from "../models/Subscription.js";
 const router=Router();
 const slugify=value=>String(value||"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 const tokenFor=user=>jwt.sign({sub:user._id.toString(),ver:user.tokenVersion||0,role:user.role,organization:user.organization.toString()},process.env.JWT_SECRET,{expiresIn:"7d"});
@@ -15,7 +16,8 @@ router.post("/register",async(req,res,next)=>{try{
   if(await User.exists({email:String(email).toLowerCase().trim()}))return res.status(409).json({error:"An account with this email already exists"});
   if(!process.env.JWT_SECRET)return res.status(503).json({error:"Authentication is not configured"});
   const slug=slugify(organizationName)+"-"+Math.random().toString(36).slice(2,7);
-  const organization=await Organization.create({name:organizationName,slug,type:organizationType,email:String(email).toLowerCase().trim()});\n  await Subscription.create({organization:organization._id,plan:"starter",status:"trialing",trialStartsAt:new Date(),trialEndsAt:new Date(Date.now()+14*86400000)});
+  const organization=await Organization.create({name:organizationName,slug,type:organizationType,email:String(email).toLowerCase().trim()});
+  await Subscription.create({organization:organization._id,plan:"starter",status:"trialing",trialStartsAt:new Date(),trialEndsAt:new Date(Date.now()+14*86400000)});
   try{
     const location=await Location.create({organization:organization._id,name:locationName,address,publicSlug:slugify(locationName)+"-"+Math.random().toString(36).slice(2,7)});
     const user=await User.create({name,email:String(email).toLowerCase().trim(),passwordHash:await bcrypt.hash(password,12),role:"owner",organization:organization._id});
