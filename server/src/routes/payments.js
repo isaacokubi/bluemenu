@@ -5,6 +5,14 @@ import { Subscription } from "../models/Subscription.js";
 import { normalizePhone, verifyDarajaCallback, queryStkPush } from "../services/daraja.js";
 
 const router = Router();
+async function ensurePaymentLedger(record) {
+  try { await PaymentTransaction.create(record); return true; }
+  catch (error) {
+    if (error?.code !== 11000) throw error;
+    const existing = await PaymentTransaction.findOne({ checkoutRequestId: record.checkoutRequestId }).lean();
+    return Boolean(existing && String(existing.entityId) === String(record.entityId) && existing.receipt === record.receipt && existing.status === "paid");
+  }
+}
 
 router.post("/daraja/callback", async (req, res, next) => {
   try {
@@ -26,7 +34,7 @@ router.post("/daraja/callback", async (req, res, next) => {
         subscription.plan=subscription.requestedPlan;subscription.billingCycle=subscription.requestedBillingCycle;
         subscription.status="active";subscription.currentPeriodStartsAt=now;subscription.currentPeriodEndsAt=new Date(now.getTime()+duration*86400000);
         subscription.graceEndsAt=new Date(subscription.currentPeriodEndsAt.getTime()+7*86400000);
-        await PaymentTransaction.create({checkoutRequestId:result.checkoutRequestId,merchantRequestId:subscription.merchantRequestId,organization:subscription.organization,kind:"subscription",entityId:subscription._id,amount:result.amount,phone:callbackPhone,status:"paid",receipt:result.receipt,resultCode:result.resultCode,resultDescription:result.resultDescription,callbackAt:now});
+        const ledgerSaved=await ensurePaymentLedger({checkoutRequestId:result.checkoutRequestId,merchantRequestId:subscription.merchantRequestId,organization:subscription.organization,kind:"subscription",entityId:subscription._id,amount:result.amount,phone:callbackPhone,status:"paid",receipt:result.receipt,resultCode:result.resultCode,resultDescription:result.resultDescription,callbackAt:now});if(!ledgerSaved)return res.status(200).json({ResultCode:0,ResultDesc:"Receipt already used by another payment"});
         subscription.lastPaymentReference=result.receipt;subscription.lastPaymentAt=now;subscription.paymentStatus="paid";
       }else{subscription.paymentStatus="failed";}
       await subscription.save();
@@ -43,7 +51,7 @@ router.post("/daraja/callback", async (req, res, next) => {
       if(result.resultCode!==0){campaign.paymentStatus="failed";await campaign.save();return res.status(200).json({ResultCode:0,ResultDesc:"Campaign payment failed"});}
       if(!validReceipt||!validAmount||!callbackPhone||callbackPhone!==expectedPhone){console.warn("Daraja sponsored campaign callback validation failed",String(campaign._id));return res.status(200).json({ResultCode:0,ResultDesc:"Callback acknowledged"});}
       const location=await Location.findById(campaign.location).select("organization");
-      await PaymentTransaction.create({checkoutRequestId:result.checkoutRequestId,organization:location?.organization,kind:"campaign",entityId:campaign._id,amount:result.amount,phone:callbackPhone,status:"paid",receipt:result.receipt,resultCode:result.resultCode,resultDescription:result.resultDescription,callbackAt:new Date()});
+      const ledgerSaved=await ensurePaymentLedger({checkoutRequestId:result.checkoutRequestId,organization:location?.organization,kind:"campaign",entityId:campaign._id,amount:result.amount,phone:callbackPhone,status:"paid",receipt:result.receipt,resultCode:result.resultCode,resultDescription:result.resultDescription,callbackAt:new Date()});if(!ledgerSaved)return res.status(200).json({ResultCode:0,ResultDesc:"Receipt already used by another payment"});
       campaign.paymentStatus="paid";campaign.paymentReference=result.receipt;campaign.reviewStatus="pending";campaign.published=false;await campaign.save();
       return res.status(200).json({ResultCode:0,ResultDesc:"Sponsored campaign payment confirmed; awaiting moderation"});
     }
