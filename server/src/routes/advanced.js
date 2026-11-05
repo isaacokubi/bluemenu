@@ -18,7 +18,8 @@ router.patch("/reservations/:id",edit,async(req,res,next)=>{let session;try{
  if(!reservation)return res.status(404).json({error:"Reservation not found"});
  const nextStatus=String(req.body?.status||reservation.status);
  if(!["requested","confirmed","checked_in","checked_out","cancelled"].includes(nextStatus))return res.status(400).json({error:"Invalid reservation status"});
- if(["checked_out","cancelled"].includes(reservation.status)&&nextStatus!==reservation.status)return res.status(409).json({error:"Checked-out or cancelled reservations cannot be reopened"});
+ const transitions={requested:["requested","confirmed","checked_in","cancelled"],confirmed:["confirmed","checked_in","cancelled"],checked_in:["checked_in","checked_out","cancelled"],checked_out:["checked_out"],cancelled:["cancelled"]};
+ if(!transitions[reservation.status]?.includes(nextStatus))return res.status(409).json({error:"Invalid reservation status transition"});
  if(nextStatus==="checked_out"&&reservation.status!=="checked_in")return res.status(409).json({error:"Only checked-in reservations can be checked out"});
  if(req.body.paymentStatus!==undefined)return res.status(403).json({error:"Payment status requires verified provider processing"});
  if(["confirmed","checked_in"].includes(nextStatus)&&!reservation.assignedRooms?.length){
