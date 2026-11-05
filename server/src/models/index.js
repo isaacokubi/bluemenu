@@ -15,3 +15,7 @@ export const Location=model("Location",locationSchema);
 export const Menu=model("Menu",menuSchema);
 export const Agenda=model("Agenda",agendaSchema);
 export const DiscoveryDevice=model("DiscoveryDevice",discoveryDeviceSchema);
+export const Order=model("Order",orderSchema);
+export const Invite=model("Invite",inviteSchema);
+export const ServiceRequest=model("ServiceRequest",serviceRequestSchema);
+export const Attendance=model("Attendance",attendanceSchema);
