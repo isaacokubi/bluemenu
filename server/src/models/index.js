@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 const { Schema, model } = mongoose;
+const userSchema = new Schema({name:{type:String,required:true,trim:true},email:{type:String,required:true,unique:true,lowercase:true,trim:true},passwordHash:{type:String,required:true,select:false},role:{type:String,enum:["owner","manager","editor","viewer"],default:"owner"},organization:{type:Schema.Types.ObjectId,ref:"Organization",required:true,index:true},active:{type:Boolean,default:true},lastLoginAt:Date},{timestamps:true});
 const organizationSchema = new Schema({name:{type:String,required:true,trim:true},slug:{type:String,required:true,unique:true,lowercase:true,trim:true},type:{type:String,enum:["restaurant","hotel","school","church","event","retail","other"],required:true},email:{type:String,trim:true,lowercase:true},phone:{type:String,trim:true},logoUrl:String,status:{type:String,enum:["active","suspended"],default:"active"}},{timestamps:true});
 const locationSchema = new Schema({organization:{type:Schema.Types.ObjectId,ref:"Organization",required:true,index:true},name:{type:String,required:true,trim:true},address:String,publicSlug:{type:String,required:true,unique:true,lowercase:true,trim:true},timezone:{type:String,default:"Africa/Nairobi"}},{timestamps:true});
 const menuItemSchema = new Schema({name:{type:String,required:true,trim:true},description:{type:String,default:""},price:{type:Number,min:0,required:true},currency:{type:String,default:"KES",uppercase:true},imageUrl:String,dietaryTags:[String],allergens:[String],available:{type:Boolean,default:true},sortOrder:{type:Number,default:0}},{timestamps:true});
@@ -8,6 +9,7 @@ const menuSchema = new Schema({location:{type:Schema.Types.ObjectId,ref:"Locatio
 const agendaItemSchema = new Schema({title:{type:String,required:true,trim:true},notes:String,presenter:String,durationMinutes:{type:Number,min:0,default:0},sortOrder:{type:Number,default:0}});
 const agendaSchema = new Schema({location:{type:Schema.Types.ObjectId,ref:"Location",required:true,index:true},title:{type:String,required:true,trim:true},meetingDate:Date,venue:String,items:[agendaItemSchema],published:{type:Boolean,default:false},publishedAt:Date},{timestamps:true});
 const discoveryDeviceSchema = new Schema({location:{type:Schema.Types.ObjectId,ref:"Location",required:true,index:true},deviceType:{type:String,enum:["ble_beacon","qr","nfc"],required:true},identifier:{type:String,required:true,unique:true,trim:true},targetUrl:{type:String,required:true},active:{type:Boolean,default:true}},{timestamps:true});
+export const User=model("User",userSchema);
 export const Organization=model("Organization",organizationSchema);
 export const Location=model("Location",locationSchema);
 export const Menu=model("Menu",menuSchema);
