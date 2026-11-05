@@ -82,3 +82,15 @@ Before pilot sign-off, test with two independent staff sessions:
 - Back up MongoDB before applying schema/index changes. New indexes are created by Mongoose model initialization; review index build impact for large datasets.
 - If booking transactions fail because the database is not a replica set, disable booking confirmation rather than reverting to race-prone availability checks.
 - If FCM or AI credentials are unavailable, in-app notifications and non-AI workflows remain available; do not display false push/AI success.
+
+
+## Information publishing acceptance checks
+
+- Create a draft announcement for one location and verify it appears in that organization's workspace only.
+- Verify an editor can create a draft but cannot publish or delete it.
+- Verify an owner or manager can publish and unpublish the item.
+- Verify a public location page displays a published public item for that location and organization-wide public items.
+- Verify internal items, drafts, future-scheduled items and expired items never appear on public pages.
+- Verify an item assigned to another tenant's location cannot be read or changed.
+- Verify external resource and image URLs accept HTTPS or relative paths and reject unsafe schemes such as javascript:.
+- Verify invalid date ranges are rejected.
