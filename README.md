@@ -117,6 +117,6 @@ The Daraja callback must be publicly reachable over HTTPS. Start with sandbox cr
 - POST /api/workspace/media/signature — request a scoped Cloudinary upload signature.
 - POST /api/workspace/discovery-devices — register a BLE, QR or NFC discovery point.
 
-**Bluetooth limitation:** BlueMenu stores BLE beacon identifiers and resolves them to public location content. A BLE signal cannot universally force iOS or Android to open a webpage. QR, NFC and short links remain the reliable cross-platform fallback. A native Android companion app for background beacon scanning remains a separate implementation phase.
+**Bluetooth limitation:** BlueMenu stores BLE beacon identifiers and resolves them to public location content. A BLE signal cannot universally force iOS or Android to open a webpage. QR, NFC and short links remain the reliable cross-platform fallback. An initial Android companion app is in mobile/android. It scans iBeacon UUIDs while the app is open; background scanning, Eddystone support, signed APK builds and physical beacon testing remain outstanding. See mobile/README.md.
 
 **Production checklist:** configure MongoDB, JWT, exact CORS origins, HTTPS app/API URLs, Cloudinary, a verified Resend sender and Daraja production credentials. Live payments, email delivery, media uploads and beacon hardware need real provider credentials and field testing.
