@@ -1,5 +1,5 @@
-importScripts("https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/11.0.2/firebase-messaging-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/13.2.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/13.2.0/firebase-messaging-compat.js");
 
 const firebaseConfigPromise = fetch("/api/push/config")
   .then(response => response.ok ? response.json() : Promise.reject(new Error("Firebase config unavailable")))
