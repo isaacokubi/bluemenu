@@ -25,8 +25,8 @@ router.post("/daraja/callback", async (req, res, next) => {
         subscription.plan=subscription.requestedPlan;subscription.billingCycle=subscription.requestedBillingCycle;
         subscription.status="active";subscription.currentPeriodStartsAt=now;subscription.currentPeriodEndsAt=new Date(now.getTime()+duration*86400000);
         subscription.graceEndsAt=new Date(subscription.currentPeriodEndsAt.getTime()+7*86400000);
-        subscription.lastPaymentReference=result.receipt;subscription.lastPaymentAt=now;subscription.paymentStatus="paid";
-      }else{subscription.paymentStatus="failed";}
+        subscription.lastPaymentReference=result.receipt;subscription.lastPaymentAt=now;subscription.mpesaPhone=expectedPhone;subscription.renewalPhone=subscription.renewalPhone||expectedPhone;subscription.paymentStatus="paid";subscription.status="active";subscription.nextBillingAt=new Date(subscription.currentPeriodEndsAt);subscription.lastRenewalError=undefined;
+      }else{subscription.paymentStatus="failed";if(subscription.autoRenewEnabled)subscription.status=subscription.graceEndsAt&&subscription.graceEndsAt>new Date()?"past_due":"past_due";subscription.lastRenewalError=result.resultDescription.slice(0,300);}
       await subscription.save();
       return res.status(200).json({ResultCode:0,ResultDesc:"Subscription callback processed"});
     }
