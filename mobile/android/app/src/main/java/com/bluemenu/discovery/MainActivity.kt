@@ -84,11 +84,16 @@ class MainActivity : Activity() {
             text = "Stop scanning"
             setOnClickListener { stopScanning(); stopService(Intent(this@MainActivity, BeaconScanService::class.java)) }
         }
+        val background = Button(this).apply {
+            text = "Continue scanning in background"
+            setOnClickListener { requestScanPermissionAndStart(true) }
+        }
         results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(title)
         root.addView(intro)
         root.addView(start)
         root.addView(stop)
+        root.addView(background)
         root.addView(status)
         root.addView(results)
         setContentView(root)
@@ -107,12 +112,16 @@ class MainActivity : Activity() {
             return
         }
         startScanning()
+        if (backgroundRequested) startBackgroundService()
+        backgroundRequested = false
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 41 && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
             startScanning()
+            if (backgroundRequested) startBackgroundService()
+            backgroundRequested = false
         } else if (requestCode == 41) {
             status.text = "Bluetooth permission is required to discover nearby BlueMenu beacons."
         }
