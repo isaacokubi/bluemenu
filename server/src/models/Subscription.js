@@ -18,8 +18,8 @@ const subscriptionSchema = new Schema({
 subscriptionSchema.index({status:1,currentPeriodEndsAt:1});
 export const Subscription=model("Subscription",subscriptionSchema);
 export const PLAN_CATALOG={
-  starter:{name:"Starter",monthly:500,annual:5000,limits:{locations:1,menus:5,teamMembers:2,monthlyOrders:100},features:["Digital menus","QR sharing","Basic agendas"]},
-  business:{name:"Business",monthly:1500,annual:15000,limits:{locations:3,menus:30,teamMembers:10,monthlyOrders:1000},features:["Menus and agendas","Orders","Hotel requests","Attendance","Basic reports"]},
-  professional:{name:"Professional",monthly:3500,annual:35000,limits:{locations:10,menus:150,teamMembers:40,monthlyOrders:10000},features:["All Business features","Advanced analytics","Multi-location","Priority support"]},
+  starter:{name:"Starter",monthly:500,annual:5000,limits:{locations:1,menus:5,agendas:5,teamMembers:2,monthlyOrders:100},features:["Digital menus","QR sharing","Basic agendas"]},
+  business:{name:"Business",monthly:1500,annual:15000,limits:{locations:3,menus:30,agendas:30,teamMembers:10,monthlyOrders:1000},features:["Menus and agendas","Orders","Hotel requests","Attendance","Basic reports"]},
+  professional:{name:"Professional",monthly:3500,annual:35000,limits:{locations:10,menus:150,agendas:150,teamMembers:40,monthlyOrders:10000},features:["All Business features","Advanced analytics","Multi-location","Priority support"]},
   enterprise:{name:"Enterprise",monthly:null,annual:null,limits:{locations:null,menus:null,teamMembers:null,monthlyOrders:null},features:["Custom limits","Dedicated onboarding","Enterprise integrations"]}
 };
