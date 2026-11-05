@@ -7,7 +7,7 @@ export async function enablePushNotifications(accessToken) {
   const configResponse = await fetch("/api/push/config");
   if (!configResponse.ok) throw new Error("Firebase web push is not configured on the server");
   const { firebase, vapidKey } = await configResponse.json();
-  if (!firebase?.apiKey || !firebase?.projectId || !vapidKey) return null;
+  if (!firebase?.apiKey || !firebase?.projectId || !firebase?.messagingSenderId || !firebase?.appId || !vapidKey) return null;
   const app = getApps().length ? getApp() : initializeApp(firebase);
   const messaging = getMessaging(app);
   const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
