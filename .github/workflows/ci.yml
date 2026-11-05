@@ -13,4 +13,6 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      - name: Check server JavaScript syntax
+        run: npm run check -w server
       - run: npm run build
