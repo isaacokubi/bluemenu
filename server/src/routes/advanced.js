@@ -18,6 +18,7 @@ router.patch("/reservations/:id",edit,async(req,res,next)=>{let session;try{
  if(!reservation)return res.status(404).json({error:"Reservation not found"});
  const nextStatus=String(req.body?.status||reservation.status);
  if(!["requested","confirmed","checked_in","checked_out","cancelled"].includes(nextStatus))return res.status(400).json({error:"Invalid reservation status"});
+ if(["checked_out","cancelled"].includes(reservation.status)&&nextStatus!==reservation.status)return res.status(409).json({error:"Checked-out or cancelled reservations cannot be reopened"});
  if(req.body.paymentStatus!==undefined)return res.status(403).json({error:"Payment status requires verified provider processing"});
  if(["confirmed","checked_in"].includes(nextStatus)&&!reservation.assignedRooms?.length){
    const start=new Date(reservation.checkIn);start.setUTCHours(0,0,0,0);const end=new Date(reservation.checkOut);end.setUTCHours(0,0,0,0);
@@ -42,7 +43,7 @@ router.patch("/reservations/:id",edit,async(req,res,next)=>{let session;try{
    if(["cancelled","checked_out"].includes(nextStatus)&&reservation.assignedRooms?.length){
      session=await mongoose.startSession();session.startTransaction();
      await RoomNight.deleteMany({reservation:reservation._id},{session});
-     reservation.status=nextStatus;if(nextStatus==="checked_out")reservation.checkedOutAt=new Date();
+     reservation.status=nextStatus;if(nextStatus==="checked_out")reservation.checkedOutAt=new Date();else reservation.assignedRooms=[];
      await reservation.save({session});await session.commitTransaction();
    }else{reservation.status=nextStatus;if(nextStatus==="checked_in")reservation.checkedInAt=new Date();await reservation.save();}
  }
