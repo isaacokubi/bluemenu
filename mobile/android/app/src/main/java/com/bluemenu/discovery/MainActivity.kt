@@ -1,0 +1,220 @@
+package com.bluemenu.discovery
+
+import android.Manifest
+import android.app.Activity
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.Gravity
+import android.view.View
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.Locale
+import java.util.concurrent.Executors
+
+class MainActivity : Activity() {
+    private val worker = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
+    private val seen = mutableSetOf<String>()
+    private lateinit var status: TextView
+    private lateinit var results: LinearLayout
+    private var scanning = false
+
+    private val scanner by lazy {
+        (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeScanner
+    }
+
+    private val callback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            val identifier = parseIBeaconUuid(result) ?: return
+            synchronized(seen) {
+                if (!seen.add(identifier)) return
+            }
+            resolveVenue(identifier)
+        }
+
+        override fun onScanFailed(errorCode: Int) {
+            main.post { status.text = "Bluetooth scan failed ($errorCode). Check Bluetooth and permissions." }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(28, 36, 28, 24)
+            setBackgroundColor(0xFFF4F7F3.toInt())
+        }
+        val title = TextView(this).apply {
+            text = "BlueMenu Nearby"
+            textSize = 26f
+            setTextColor(0xFF1D4938.toInt())
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val intro = TextView(this).apply {
+            text = "Find participating venues nearby. Select a result to open its live menu, agenda or guest information."
+            textSize = 14f
+            setTextColor(0xFF627368.toInt())
+            setPadding(0, 12, 0, 18)
+        }
+        status = TextView(this).apply {
+            text = "Ready to scan for BlueMenu beacons."
+            textSize = 13f
+            setTextColor(0xFF365D48.toInt())
+            setPadding(0, 10, 0, 16)
+        }
+        val start = Button(this).apply {
+            text = "Scan nearby"
+            setOnClickListener { requestScanPermissionAndStart() }
+        }
+        val stop = Button(this).apply {
+            text = "Stop scanning"
+            setOnClickListener { stopScanning() }
+        }
+        results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(title)
+        root.addView(intro)
+        root.addView(start)
+        root.addView(stop)
+        root.addView(status)
+        root.addView(results)
+        setContentView(root)
+    }
+
+    private fun requestScanPermissionAndStart() {
+        val needed = if (Build.VERSION.SDK_INT >= 31) {
+            arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        val missing = needed.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) {
+            requestPermissions(missing.toTypedArray(), 41)
+            return
+        }
+        startScanning()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 41 && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            startScanning()
+        } else if (requestCode == 41) {
+            status.text = "Bluetooth permission is required to discover nearby BlueMenu beacons."
+        }
+    }
+
+    private fun startScanning() {
+        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) return
+        if (scanner == null) {
+            status.text = "This device does not have an available Bluetooth LE scanner."
+            return
+        }
+        try {
+            synchronized(seen) { seen.clear() }
+            results.removeAllViews()
+            scanner.startScan(callback)
+            scanning = true
+            status.text = "Scanning for BlueMenu iBeacon UUIDs for 30 seconds…"
+            main.postDelayed({ stopScanning() }, 30_000)
+        } catch (error: SecurityException) {
+            status.text = "Bluetooth permission was denied. Enable Nearby devices permission in Settings."
+        } catch (error: Exception) {
+            status.text = "Could not start scanning: ${error.message}"
+        }
+    }
+
+    private fun stopScanning() {
+        if (!scanning) return
+        try {
+            if (Build.VERSION.SDK_INT < 31 || checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
+                scanner?.stopScan(callback)
+            }
+        } catch (_: Exception) { }
+        scanning = false
+        status.text = "Scan stopped. Tap Scan nearby to search again."
+    }
+
+    private fun parseIBeaconUuid(result: ScanResult): String? {
+        val record = result.scanRecord ?: return null
+        val data = record.getManufacturerSpecificData(0x004C) ?: return null
+        if (data.size < 18 || data[0] != 0x02.toByte() || data[1] != 0x15.toByte()) return null
+        val bytes = data.copyOfRange(2, 18)
+        val hex = bytes.joinToString("") { "%02x".format(it) }
+        return (hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" +
+            hex.substring(12, 16) + "-" + hex.substring(16, 20) + "-" +
+            hex.substring(20, 32)).lowercase(Locale.US)
+    }
+
+    private fun resolveVenue(identifier: String) {
+        worker.execute {
+            var connection: HttpURLConnection? = null
+            try {
+                val base = BuildConfig.API_BASE_URL.trimEnd('/')
+                if (base.contains("your-api-domain.example")) throw IllegalStateException("Set BLUEMENU_API_BASE_URL in the Android build configuration.")
+                connection = (URL("$base/api/public/discovery/$identifier").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 7000
+                    readTimeout = 7000
+                }
+                if (connection.responseCode !in 200..299) return@execute
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
+                val location = json.getJSONObject("location")
+                val device = json.getJSONObject("device")
+                val target = device.getString("targetUrl")
+                val publicUrl = if (target.startsWith("https://")) target else base + if (target.startsWith("/")) target else "/$target"
+                main.post { addVenue(location.optString("name", "BlueMenu venue"), publicUrl, identifier) }
+            } catch (error: Exception) {
+                main.post { status.text = "A beacon was detected, but BlueMenu could not resolve it: ${error.message}" }
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
+    private fun addVenue(name: String, url: String, identifier: String) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(18, 14, 18, 14)
+            setBackgroundColor(0xFFFFFFFF.toInt())
+        }
+        val label = TextView(this).apply {
+            text = name
+            textSize = 17f
+            setTextColor(0xFF1D4938.toInt())
+        }
+        val detail = TextView(this).apply {
+            text = "Nearby BlueMenu beacon · $identifier"
+            textSize = 10f
+            setTextColor(0xFF718176.toInt())
+            setPadding(0, 5, 0, 8)
+        }
+        val open = Button(this).apply {
+            text = "Open menu or information"
+            setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        }
+        card.addView(label)
+        card.addView(detail)
+        card.addView(open)
+        results.addView(card)
+        status.text = "BlueMenu venue found. Tap a result to open it."
+    }
+
+    override fun onDestroy() {
+        stopScanning()
+        worker.shutdownNow()
+        super.onDestroy()
+    }
+}
