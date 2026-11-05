@@ -40,3 +40,6 @@
 @media(max-width:850px){.operations-columns{grid-template-columns:1fr}}
 
 .public-tools{margin-top:18px}.public-tools form{display:grid;gap:12px}.public-tools label{display:grid;gap:6px;font-size:11px;font-weight:700;color:#607268}.public-tools input,.public-tools textarea{width:100%;border:1px solid #e1e9e1;border-radius:8px;padding:11px 12px;background:#fbfcfa;color:#294335;font:12px 'DM Sans'}
+
+.campaign-panel{margin:0 0 22px}.public-campaigns{margin:24px 0}.public-campaigns h2{font:800 20px Manrope;margin:0 0 12px}.public-campaign{display:flex;gap:15px;padding:14px;background:white;border:1px solid #e4ece4;border-radius:12px;margin-bottom:10px}.public-campaign img{width:100px;height:90px;object-fit:cover;border-radius:8px}.public-campaign>div{display:grid;align-content:center;gap:6px}.public-campaign b{font:800 14px Manrope}.public-campaign p{font-size:12px;color:#748579;margin:0}.public-campaign button{justify-self:start;border:0;background:#eaf4eb;color:#2b6843;border-radius:7px;padding:8px 10px;font-size:11px;font-weight:700}
+@media(max-width:600px){.public-campaign img{width:75px;height:75px}}
