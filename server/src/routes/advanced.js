@@ -1,20 +1,77 @@
 import { Router } from "express";
 import mongoose from "mongoose";
-import { Agenda,Attendance,Location,Organization,Reservation,TableBooking,Room,MeetingResolution,Notification,OfflineEvent,QueueTicket,AuditLog } from "../models/index.js";
+import { Agenda,Attendance,Location,Organization,Reservation,TableBooking,Room,RoomNight,TableSlot,DeviceToken,MeetingResolution,Notification,OfflineEvent,QueueTicket,AuditLog } from "../models/index.js";
 import { requireAuth,allowRoles } from "../middleware/auth.js";
+import { sendOrganizationPush } from "../services/push.js";
+import { initiateStkPush, normalizePhone } from "../services/daraja.js";
 const router=Router();router.use(requireAuth);
 const edit=allowRoles("owner","manager","editor");
 const idOk=id=>mongoose.isValidObjectId(id);
 const locations=async org=>Location.find({organization:org}).distinct("_id");
 async function audit(req,action,type,id,details={}){try{await AuditLog.create({organization:req.user.organization,actor:req.user._id,action,entityType:type,entityId:String(id||""),details,ipAddress:req.ip,userAgent:String(req.get("user-agent")||"").slice(0,300)});}catch(e){console.error("Audit write failed",e.message);}}
 router.get("/reservations",async(req,res,next)=>{try{const ids=await locations(req.user.organization);res.json({reservations:await Reservation.find({location:{$in:ids}}).sort({createdAt:-1}).limit(300).lean()});}catch(e){next(e);}});
-router.patch("/reservations/:id",edit,async(req,res,next)=>{try{if(!idOk(req.params.id))return res.status(400).json({error:"Invalid reservation"});const ids=await locations(req.user.organization);const x=await Reservation.findOne({_id:req.params.id,location:{$in:ids}});if(!x)return res.status(404).json({error:"Reservation not found"});if(req.body.status!==undefined){if(!["requested","confirmed","checked_in","checked_out","cancelled"].includes(req.body.status))return res.status(400).json({error:"Invalid status"});x.status=req.body.status;}if(req.body.paymentStatus!==undefined)return res.status(403).json({error:"Payment status requires verified provider processing"});await x.save();await audit(req,"reservation.updated","reservation",x._id,{status:x.status});res.json({reservation:x});}catch(e){next(e);}});
+router.patch("/reservations/:id",edit,async(req,res,next)=>{let session;try{
+ if(!idOk(req.params.id))return res.status(400).json({error:"Invalid reservation"});
+ const ids=await locations(req.user.organization),reservation=await Reservation.findOne({_id:req.params.id,location:{$in:ids}});
+ if(!reservation)return res.status(404).json({error:"Reservation not found"});
+ const nextStatus=String(req.body?.status||reservation.status);
+ if(!["requested","confirmed","checked_in","checked_out","cancelled"].includes(nextStatus))return res.status(400).json({error:"Invalid reservation status"});
+ if(req.body.paymentStatus!==undefined)return res.status(403).json({error:"Payment status requires verified provider processing"});
+ if(["confirmed","checked_in"].includes(nextStatus)&&!reservation.assignedRooms?.length){
+   const start=new Date(reservation.checkIn);start.setUTCHours(0,0,0,0);const end=new Date(reservation.checkOut);end.setUTCHours(0,0,0,0);
+   if(end<=start)return res.status(400).json({error:"Check-out must be after check-in"});
+   const nights=[];for(let d=new Date(start);d<end;d.setUTCDate(d.getUTCDate()+1))nights.push(new Date(d));
+   const perRoomCapacity=Math.ceil(reservation.guests/Math.max(1,reservation.rooms));
+   const candidates=await Room.find({location:reservation.location,active:true,capacity:{$gte:perRoomCapacity},...(reservation.roomType?{roomType:reservation.roomType}:{})}).sort({roomNumber:1}).lean();
+   const busy=await RoomNight.distinct("room",{location:reservation.location,night:{$in:nights}});
+   const available=candidates.filter(r=>!busy.some(id=>String(id)===String(r._id))).slice(0,Math.max(1,reservation.rooms));
+   if(available.length<Math.max(1,reservation.rooms))return res.status(409).json({error:"Insufficient rooms available for the requested dates and guest count"});
+   session=await mongoose.startSession();session.startTransaction();
+   const allocations=[];for(const room of available)for(const night of nights)allocations.push({room:room._id,location:reservation.location,night,reservation:reservation._id});
+   await RoomNight.insertMany(allocations,{session,ordered:true});
+   reservation.assignedRooms=available.map(r=>r._id);reservation.status=nextStatus;
+   if(nextStatus==="checked_in")reservation.checkedInAt=new Date();
+   await reservation.save({session});await session.commitTransaction();
+ }else{
+   if(nextStatus==="checked_in"&&!reservation.assignedRooms?.length)return res.status(409).json({error:"Confirm and allocate rooms before check-in"});
+   if(["cancelled","checked_out"].includes(nextStatus)&&reservation.assignedRooms?.length){
+     session=await mongoose.startSession();session.startTransaction();
+     await RoomNight.deleteMany({reservation:reservation._id},{session});
+     reservation.status=nextStatus;if(nextStatus==="checked_out")reservation.checkedOutAt=new Date();
+     await reservation.save({session});await session.commitTransaction();
+   }else{reservation.status=nextStatus;if(nextStatus==="checked_in")reservation.checkedInAt=new Date();await reservation.save();}
+ }
+ await audit(req,"reservation.status_changed","reservation",reservation._id,{status:reservation.status,assignedRooms:reservation.assignedRooms?.length||0});
+ res.json({reservation,allocatedRooms:reservation.assignedRooms?.length||0});
+ }catch(e){if(session?.inTransaction())await session.abortTransaction().catch(()=>{});if(e?.code===11000)return res.status(409).json({error:"Room inventory changed while confirming. Refresh availability and retry."});next(e);}finally{await session?.endSession().catch(()=>{});}});
 router.get("/table-bookings",async(req,res,next)=>{try{const ids=await locations(req.user.organization);res.json({bookings:await TableBooking.find({location:{$in:ids}}).sort({bookingAt:1}).limit(300).lean()});}catch(e){next(e);}});
-router.patch("/table-bookings/:id",edit,async(req,res,next)=>{try{if(!idOk(req.params.id)||!["requested","confirmed","seated","completed","cancelled","no_show"].includes(req.body.status))return res.status(400).json({error:"Invalid table booking or status"});const ids=await locations(req.user.organization);const x=await (await import("../models/index.js")).TableBooking.findOne({_id:req.params.id,location:{$in:ids}});if(!x)return res.status(404).json({error:"Table booking not found"});x.status=req.body.status;await x.save();await audit(req,"table_booking.updated","table_booking",x._id,{status:x.status});res.json({booking:x});}catch(e){next(e);}});
+router.patch("/table-bookings/:id",allowRoles("owner","manager"),async(req,res,next)=>{let session;try{
+ if(!idOk(req.params.id)||!["requested","confirmed","seated","completed","cancelled","no_show"].includes(req.body.status))return res.status(400).json({error:"Invalid table booking or status"});
+ const ids=await locations(req.user.organization),booking=await TableBooking.findOne({_id:req.params.id,location:{$in:ids}});
+ if(!booking)return res.status(404).json({error:"Table booking not found"});
+ const nextStatus=req.body.status,holding=["confirmed","seated"].includes(nextStatus);
+ if(holding&&!booking.capacityHeld){
+   const location=await Location.findOne({_id:booking.location,organization:req.user.organization}).select("tableCapacity");
+   if(!location)return res.status(404).json({error:"Location not found"});
+   const slotMs=30*60*1000,slotStart=new Date(Math.floor(new Date(booking.bookingAt).getTime()/slotMs)*slotMs);
+   session=await mongoose.startSession();session.startTransaction();
+   let slot=await TableSlot.findOne({location:booking.location,slotStart}).session(session);
+   if(!slot){[slot]=await TableSlot.create([{location:booking.location,slotStart,capacity:location.tableCapacity||50,reservedCovers:0}],{session});}
+   const updated=await TableSlot.findOneAndUpdate({_id:slot._id,$expr:{$lte:[{$add:["$reservedCovers",booking.partySize]},"$capacity"]}},{$inc:{reservedCovers:booking.partySize}},{new:true,session});
+   if(!updated){await session.abortTransaction();return res.status(409).json({error:"This time slot has reached its table capacity"});}
+   booking.capacitySlot=slotStart;booking.capacityHeld=true;booking.confirmedAt=new Date();booking.status=nextStatus;await booking.save({session});await session.commitTransaction();
+ }else if(!holding&&booking.capacityHeld){
+   session=await mongoose.startSession();session.startTransaction();
+   await TableSlot.updateOne({location:booking.location,slotStart:booking.capacitySlot,reservedCovers:{$gte:booking.partySize}},{$inc:{reservedCovers:-booking.partySize}},{session});
+   booking.capacityHeld=false;booking.status=nextStatus;await booking.save({session});await session.commitTransaction();
+ }else{booking.status=nextStatus;await booking.save();}
+ await audit(req,"table_booking.status_changed","table_booking",booking._id,{status:booking.status,capacityHeld:booking.capacityHeld});
+ res.json({booking});
+ }catch(e){if(session?.inTransaction())await session.abortTransaction().catch(()=>{});if(e?.code===11000)return res.status(409).json({error:"Another booking reserved this time slot. Refresh and retry."});next(e);}finally{await session?.endSession().catch(()=>{});}});
 router.get("/rooms",async(req,res,next)=>{try{const ids=await locations(req.user.organization);res.json({rooms:await Room.find({location:{$in:ids}}).sort({roomNumber:1}).lean()});}catch(e){next(e);}});
 router.post("/rooms",edit,async(req,res,next)=>{try{const {locationId,roomNumber,roomType,capacity,ratePerNight}=req.body||{};if(!idOk(locationId)||!String(roomNumber||"").trim()||!String(roomType||"").trim())return res.status(400).json({error:"Location, room number and room type are required"});const loc=await Location.findOne({_id:locationId,organization:req.user.organization});if(!loc)return res.status(404).json({error:"Location not found"});const room=await Room.create({location:loc._id,roomNumber:String(roomNumber).trim().slice(0,40),roomType:String(roomType).trim().slice(0,80),capacity:Math.max(1,Math.min(20,Number(capacity)||2)),ratePerNight:Math.max(0,Number(ratePerNight)||0)});await audit(req,"room.created","room",room._id);res.status(201).json({room});}catch(e){next(e);}});
 router.patch("/rooms/:id",edit,async(req,res,next)=>{try{if(!idOk(req.params.id))return res.status(400).json({error:"Invalid room"});const ids=await locations(req.user.organization);const room=await Room.findOne({_id:req.params.id,location:{$in:ids}});if(!room)return res.status(404).json({error:"Room not found"});for(const k of ["roomNumber","roomType","capacity","ratePerNight","active"])if(req.body[k]!==undefined)room[k]=req.body[k];await room.save();await audit(req,"room.updated","room",room._id);res.json({room});}catch(e){next(e);}});
-router.get("/room-availability",async(req,res,next)=>{try{const {locationId,checkIn,checkOut,roomType}=req.query;if(!idOk(locationId)||!checkIn||!checkOut||new Date(checkOut)<=new Date(checkIn))return res.status(400).json({error:"Valid location, check-in and later check-out dates are required"});const loc=await Location.findOne({_id:locationId,organization:req.user.organization});if(!loc)return res.status(404).json({error:"Location not found"});const rooms=await Room.find({location:loc._id,active:true,...(roomType?{roomType}: {})}).lean();const bookings=await Reservation.find({location:loc._id,status:{$in:["confirmed","checked_in"]},checkIn:{$lt:new Date(checkOut)},checkOut:{$gt:new Date(checkIn)}}).lean();const occupied=new Set();for(const b of bookings){const matching=rooms.filter(r=>!b.roomType||r.roomType===b.roomType);matching.slice(0,Math.max(1,b.rooms||1)).forEach(r=>occupied.add(String(r._id)));}res.json({availableRooms:rooms.filter(r=>!occupied.has(String(r._id))),totalRooms:rooms.length,occupiedRooms:occupied.size,period:{checkIn,checkOut}});}catch(e){next(e);}});
+router.get("/room-availability",async(req,res,next)=>{try{const {locationId,checkIn,checkOut,roomType}=req.query;if(!idOk(locationId)||!checkIn||!checkOut||new Date(checkOut)<=new Date(checkIn))return res.status(400).json({error:"Valid location, check-in and later check-out dates are required"});const loc=await Location.findOne({_id:locationId,organization:req.user.organization});if(!loc)return res.status(404).json({error:"Location not found"});const rooms=await Room.find({location:loc._id,active:true,...(roomType?{roomType}: {})}).lean();const start=new Date(checkIn);start.setUTCHours(0,0,0,0);const end=new Date(checkOut);end.setUTCHours(0,0,0,0);const nights=[];for(let d=new Date(start);d<end;d.setUTCDate(d.getUTCDate()+1))nights.push(new Date(d));const allocations=await RoomNight.distinct("room",{location:loc._id,night:{$in:nights}});const occupied=new Set(allocations.map(String));res.json({availableRooms:rooms.filter(r=>!occupied.has(String(r._id))),totalRooms:rooms.length,occupiedRooms:occupied.size,period:{checkIn,checkOut}});}catch(e){next(e);}});
 router.get("/meeting-resolutions",async(req,res,next)=>{try{const ids=await locations(req.user.organization);const agendas=await Agenda.find({location:{$in:ids}}).distinct("_id");res.json({resolutions:await MeetingResolution.find({agenda:{$in:agendas}}).sort({createdAt:-1}).populate("agenda","title meetingDate").lean()});}catch(e){next(e);}});
 router.post("/meeting-resolutions",edit,async(req,res,next)=>{try{const {agendaId,title,decision,description}=req.body||{};if(!idOk(agendaId)||!String(title||"").trim()||!String(decision||"").trim())return res.status(400).json({error:"Agenda, resolution title and decision are required"});const ids=await locations(req.user.organization);const agenda=await Agenda.findOne({_id:agendaId,location:{$in:ids}});if(!agenda)return res.status(404).json({error:"Agenda not found"});const item=await MeetingResolution.create({agenda:agenda._id,organization:req.user.organization,title:String(title).slice(0,180),decision:String(decision).slice(0,4000),description:String(description||"").slice(0,2000),proposedBy:req.user._id});await audit(req,"resolution.created","meeting_resolution",item._id);res.status(201).json({resolution:item});}catch(e){next(e);}});
 router.patch("/meeting-resolutions/:id",allowRoles("owner","manager"),async(req,res,next)=>{try{if(!idOk(req.params.id)||!["proposed","approved","rejected","deferred"].includes(req.body.status))return res.status(400).json({error:"Valid resolution ID and status are required"});const item=await MeetingResolution.findOne({_id:req.params.id,organization:req.user.organization});if(!item)return res.status(404).json({error:"Resolution not found"});item.status=req.body.status;if(item.status==="approved"){item.approvedBy=req.user._id;item.approvedAt=new Date();}await item.save();await audit(req,"resolution.status_changed","meeting_resolution",item._id,{status:item.status});res.json({resolution:item});}catch(e){next(e);}});
