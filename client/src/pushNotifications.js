@@ -1,5 +1,5 @@
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
+import { getApp, getApps, initializeApp } from "@firebase/app";
+import { getMessaging, getToken, isSupported, onMessage } from "@firebase/messaging";
 
 export async function enablePushNotifications(accessToken) {
   if (!accessToken || !("Notification" in window) || !("serviceWorker" in navigator)) return null;
