@@ -12,7 +12,9 @@ import paymentRoutes from "./routes/payments.js";
 import subscriptionRoutes from "./routes/subscriptions.js";
 import aiRoutes from "./routes/ai.js";
 import advancedRoutes from "./routes/advanced.js";
+import productionRoutes from "./routes/production.js";
 import publicBookingRoutes from "./routes/public-bookings.js";
+import { ensureDeviceTokenIndexes } from "./services/maintenance.js";
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
@@ -22,7 +24,10 @@ app.use(helmet({crossOriginResourcePolicy:{policy:"cross-origin"}}));
 app.use(cors({origin:(origin,callback)=>{if(!origin||allowedOrigins.includes(origin))return callback(null,true);return callback(new Error("Origin is not allowed by CORS"));}}));
 const authLimiter=rateLimit({windowMs:15*60*1000,limit:12,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many sign-in or recovery attempts. Try again later."}});
 const publicLimiter=rateLimit({windowMs:15*60*1000,limit:120,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many requests. Please try again later."}});
+const aiLimiter=rateLimit({windowMs:60*1000,limit:12,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"AI request limit reached. Please retry in a minute."}});
 app.use(express.json({ limit: "1mb" }));
+const apiLimiter=rateLimit({windowMs:60*1000,limit:240,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many API requests. Please retry shortly."}});
+app.use("/api",apiLimiter);
 
 const databaseReady = () => mongoose.connection.readyState === 1;
 
@@ -55,10 +60,11 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/public", publicLimiter, publicRoutes);
 app.use("/api/public-bookings", publicLimiter, publicBookingRoutes);
 app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/workspace", productionRoutes);
 app.use("/api/workspace", workspaceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
-app.use("/api/ai", aiRoutes);
+app.use("/api/ai", aiLimiter, aiRoutes);
 app.use("/api/workspace", advancedRoutes);
 app.use("/api/admin", adminRoutes);
 app.use((err, _req, res, _next) => {
@@ -68,11 +74,13 @@ app.use((err, _req, res, _next) => {
 app.use((req, res) => res.status(404).json({ error: "Route not found", path: req.path }));
 
 async function start() {
+  if (process.env.NODE_ENV === "production" && String(process.env.JWT_SECRET||"").length < 32) { console.error("JWT_SECRET must contain at least 32 characters in production."); process.exit(1); }
   if (!process.env.MONGODB_URI) {
     console.error("MONGODB_URI is missing. Copy server/.env.example to server/.env and configure MongoDB Atlas.");
     process.exit(1);
   }
   await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+  await ensureDeviceTokenIndexes();
   console.log("BlueMenu connected to MongoDB.");
   const server = app.listen(port, () => console.log(`BlueMenu API listening on ${port}`));
   const shutdown = signal => {

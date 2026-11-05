@@ -2,6 +2,9 @@ package com.bluemenu.discovery
 
 import android.Manifest
 import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.ScanCallback
@@ -9,7 +12,6 @@ import android.bluetooth.le.ScanResult
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -23,6 +25,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import java.util.concurrent.Executors
+import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : Activity() {
     private val worker = Executors.newSingleThreadExecutor()
@@ -52,6 +55,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 26) getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("bluemenu_updates", "BlueMenu updates", NotificationManager.IMPORTANCE_DEFAULT))
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(28, 36, 28, 24)
@@ -79,6 +83,8 @@ class MainActivity : Activity() {
             text = "Scan nearby"
             setOnClickListener { requestScanPermissionAndStart() }
         }
+        val background = Button(this).apply { text = "Enable background discovery"; setOnClickListener { requestBackgroundDiscovery() } }
+        val stopBackground = Button(this).apply { text = "Stop background discovery"; setOnClickListener { stopService(Intent(this@MainActivity, BeaconScanService::class.java)); status.text = "Background discovery stopped." } }
         val stop = Button(this).apply {
             text = "Stop scanning"
             setOnClickListener { stopScanning() }
@@ -88,6 +94,8 @@ class MainActivity : Activity() {
         root.addView(intro)
         root.addView(start)
         root.addView(stop)
+        root.addView(background)
+        root.addView(stopBackground)
         root.addView(status)
         root.addView(results)
         setContentView(root)
@@ -113,7 +121,41 @@ class MainActivity : Activity() {
             startScanning()
         } else if (requestCode == 41) {
             status.text = "Bluetooth permission is required to discover nearby BlueMenu beacons."
+        } else if (requestCode == 43 && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            startBackgroundDiscovery()
+        } else if (requestCode == 43) { status.text = "Notification permission is needed to show background discovery status." }
+        else if (requestCode == 44 && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) { startBackgroundDiscovery() }
+        else if (requestCode == 44) { status.text = "Bluetooth permission is required for background discovery." }
+    }
+
+    private fun requestBackgroundDiscovery() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 43)
+            return
         }
+        startBackgroundDiscovery()
+    }
+
+    private fun startBackgroundDiscovery() {
+        val needed = if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        val missing = needed.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) { requestPermissions(missing.toTypedArray(), 44); return }
+        val adapter = (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter
+        if (adapter == null) { status.text = "Bluetooth is not available on this phone."; return }
+        if (!adapter.isEnabled) { status.text = "Turn on Bluetooth to enable background discovery."; startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), 45); return }
+        try {
+            val intent = Intent(this, BeaconScanService::class.java)
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+            status.text = "Background discovery enabled. Android displays an ongoing notification while scanning."
+        } catch (error: Exception) {
+            status.text = "Could not enable background discovery: ${error.message}"
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 42 && resultCode == RESULT_OK) startScanning()
+        if (requestCode == 45 && resultCode == RESULT_OK) startBackgroundDiscovery()
     }
 
     private fun startScanning() {
@@ -176,6 +218,11 @@ class MainActivity : Activity() {
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(body)
                 val location = json.getJSONObject("location")
+                val slug = location.optString("publicSlug", "")
+                if (slug.isNotBlank()) {
+                    getSharedPreferences("bluemenu", MODE_PRIVATE).edit().putString("public_slug", slug).apply()
+                    try { FirebaseMessaging.getInstance().token.addOnSuccessListener { token -> PushRegistration.register(this, token, slug) } } catch (_: Exception) { }
+                }
                 val device = json.getJSONObject("device")
                 val target = device.getString("targetUrl")
                 val publicUrl = if (target.startsWith("https://")) target else base + if (target.startsWith("/")) target else "/$target"
