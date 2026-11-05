@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import mongoose from "mongoose";
 import publicRoutes from "./routes/public.js";
 import adminRoutes from "./routes/admin.js";
@@ -10,7 +12,12 @@ import paymentRoutes from "./routes/payments.js";
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
-app.use(cors({ origin: process.env.CLIENT_ORIGIN?.split(",") || true }));
+app.set("trust proxy", 1);
+const allowedOrigins=(process.env.CLIENT_ORIGIN||"http://localhost:5173").split(",").map(value=>value.trim()).filter(Boolean);
+app.use(helmet({crossOriginResourcePolicy:{policy:"cross-origin"}}));
+app.use(cors({origin:(origin,callback)=>{if(!origin||allowedOrigins.includes(origin))return callback(null,true);return callback(new Error("Origin is not allowed by CORS"));}}));
+const authLimiter=rateLimit({windowMs:15*60*1000,limit:12,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many sign-in or recovery attempts. Try again later."}});
+const publicLimiter=rateLimit({windowMs:15*60*1000,limit:120,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many requests. Please try again later."}});
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/api/health", (_req, res) => {
@@ -22,8 +29,8 @@ app.get("/api/health", (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-app.use("/api/public", publicRoutes);
-app.use("/api/auth", authRoutes);
+app.use("/api/public", publicLimiter, publicRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/workspace", workspaceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
