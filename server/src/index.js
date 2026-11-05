@@ -14,6 +14,7 @@ import aiRoutes from "./routes/ai.js";
 import advancedRoutes from "./routes/advanced.js";
 import productionRoutes from "./routes/production.js";
 import publicBookingRoutes from "./routes/public-bookings.js";
+import { ensureDeviceTokenIndexes } from "./services/maintenance.js";
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
@@ -78,6 +79,7 @@ async function start() {
     process.exit(1);
   }
   await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+  await ensureDeviceTokenIndexes();
   console.log("BlueMenu connected to MongoDB.");
   const server = app.listen(port, () => console.log(`BlueMenu API listening on ${port}`));
   const shutdown = signal => {
