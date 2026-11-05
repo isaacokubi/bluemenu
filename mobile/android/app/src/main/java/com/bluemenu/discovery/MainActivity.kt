@@ -111,16 +111,14 @@ class MainActivity : Activity() {
             requestPermissions(missing.toTypedArray(), 41)
             return
         }
-        startScanning()
-        if (backgroundRequested) startBackgroundService()
+        if (backgroundRequested) startBackgroundService() else startScanning()
         backgroundRequested = false
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 41 && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-            startScanning()
-            if (backgroundRequested) startBackgroundService()
+            if (backgroundRequested) startBackgroundService() else startScanning()
             backgroundRequested = false
         } else if (requestCode == 41) {
             status.text = "Bluetooth permission is required to discover nearby BlueMenu beacons."
