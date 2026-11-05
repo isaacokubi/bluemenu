@@ -58,11 +58,11 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/public", publicLimiter, publicRoutes);
 app.use("/api/public-bookings", publicLimiter, publicBookingRoutes);
 app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/workspace", productionRoutes);
 app.use("/api/workspace", workspaceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/ai", aiRoutes);
-app.use("/api/workspace", productionRoutes);
 app.use("/api/workspace", advancedRoutes);
 app.use("/api/admin", adminRoutes);
 app.use((err, _req, res, _next) => {
