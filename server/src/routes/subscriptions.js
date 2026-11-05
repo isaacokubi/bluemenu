@@ -9,9 +9,14 @@ const router=Router();
 router.get("/plans",(_req,res)=>res.json({currency:"KES",trialDays:14,plans:Object.entries(PLAN_CATALOG).map(([id,p])=>({id,...p}))}));
 router.get("/me",requireAuth,async(req,res,next)=>{try{
  let subscription=await Subscription.findOne({organization:req.user.organization});
- if(!subscription){subscription=await Subscription.create({organization:req.user.organization});}
- const plan=PLAN_CATALOG[subscription.plan]||PLAN_CATALOG.starter;
  const now=new Date();
+ // A read endpoint must not create a MongoDB collection or a write side effect.
+ // When billing has not been initialized, return a virtual 14-day starter trial.
+ if(!subscription){
+   const trialEndsAt=new Date(now.getTime()+14*86400000);
+   subscription={plan:"starter",status:"trialing",billingCycle:"monthly",trialStartsAt:now,trialEndsAt,autoRenewEnabled:false,paymentStatus:"none",toObject(){return {...this};}};
+ }
+ const plan=PLAN_CATALOG[subscription.plan]||PLAN_CATALOG.starter;
  const trialExpired=subscription.status==="trialing"&&subscription.trialEndsAt&&subscription.trialEndsAt<=now;
  const periodExpired=["active","past_due"].includes(subscription.status)&&subscription.currentPeriodEndsAt&&subscription.currentPeriodEndsAt<=now;
  const effectiveStatus=trialExpired?"past_due":periodExpired?"past_due":subscription.status;
