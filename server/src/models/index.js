@@ -65,3 +65,13 @@ const informationItemSchema=new Schema({organization:{type:Schema.Types.ObjectId
 informationItemSchema.index({organization:1,location:1,published:1,startsAt:1,endsAt:1});
 export const InformationItem=model("InformationItem",informationItemSchema);
 
+
+const transportRouteSchema=new Schema({organization:{type:Schema.Types.ObjectId,ref:"Organization",required:true,index:true},location:{type:Schema.Types.ObjectId,ref:"Location",required:true,index:true},name:{type:String,required:true,trim:true,maxlength:120},routeCode:{type:String,trim:true,uppercase:true,maxlength:24},origin:{type:String,required:true,trim:true,maxlength:120},destination:{type:String,required:true,trim:true,maxlength:120},stops:[{name:{type:String,required:true,trim:true,maxlength:120},order:{type:Number,min:0,required:true}}],departures:[{daysOfWeek:[{type:Number,min:0,max:6}],departureTime:{type:String,required:true,match:/^([01]\\d|2[0-3]):[0-5]\\d$/},arrivalTime:{type:String,match:/^([01]\\d|2[0-3]):[0-5]\\d$/},fareKES:{type:Number,min:0,default:0},notes:{type:String,maxlength:300}}],active:{type:Boolean,default:true}},{timestamps:true});
+transportRouteSchema.index({organization:1,location:1,active:1});
+const loyaltyAccountSchema=new Schema({organization:{type:Schema.Types.ObjectId,ref:"Organization",required:true,index:true},location:{type:Schema.Types.ObjectId,ref:"Location",index:true},customerName:{type:String,required:true,trim:true,maxlength:120},phone:{type:String,required:true,trim:true},email:{type:String,lowercase:true,trim:true},points:{type:Number,min:0,default:0}},{timestamps:true});
+loyaltyAccountSchema.index({organization:1,phone:1},{unique:true});
+const loyaltyTransactionSchema=new Schema({organization:{type:Schema.Types.ObjectId,ref:"Organization",required:true,index:true},account:{type:Schema.Types.ObjectId,ref:"LoyaltyAccount",required:true,index:true},idempotencyKey:{type:String,required:true},type:{type:String,enum:["earn","adjustment","redeem"],required:true},points:{type:Number,required:true},balanceAfter:{type:Number,required:true,min:0},reason:{type:String,required:true,trim:true,maxlength:300},reference:String,actor:{type:Schema.Types.ObjectId,ref:"User"}},{timestamps:true});
+loyaltyTransactionSchema.index({organization:1,idempotencyKey:1},{unique:true});
+export const TransportRoute=model("TransportRoute",transportRouteSchema);
+export const LoyaltyAccount=model("LoyaltyAccount",loyaltyAccountSchema);
+export const LoyaltyTransaction=model("LoyaltyTransaction",loyaltyTransactionSchema);
