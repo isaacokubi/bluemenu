@@ -1,0 +1,29 @@
+name: BlueMenu M-Pesa renewal and reconciliation
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+jobs:
+  billing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send opted-in renewal prompts
+        env:
+          API_BASE_URL: ${{ vars.BLUEMENU_API_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$API_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Skipped renewal scheduler: configure BLUEMENU_API_BASE_URL and CRON_SECRET."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error -X POST "$API_BASE_URL/api/subscriptions/renewals/run" -H "x-cron-secret: $CRON_SECRET" -H "Content-Type: application/json"
+      - name: Reconcile pending Daraja STK requests
+        env:
+          API_BASE_URL: ${{ vars.BLUEMENU_API_BASE_URL }}
+          DARAJA_RECONCILE_SECRET: ${{ secrets.DARAJA_RECONCILE_SECRET }}
+        run: |
+          if [ -z "$API_BASE_URL" ] || [ -z "$DARAJA_RECONCILE_SECRET" ]; then
+            echo "Skipped Daraja reconciliation: configure BLUEMENU_API_BASE_URL and DARAJA_RECONCILE_SECRET."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error -X POST "$API_BASE_URL/api/payments/daraja/reconcile" -H "x-reconcile-secret: $DARAJA_RECONCILE_SECRET" -H "Content-Type: application/json"
