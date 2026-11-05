@@ -3,6 +3,7 @@ package com.bluemenu.discovery
 import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Intent
@@ -116,6 +117,9 @@ class MainActivity : Activity() {
     }
 
     private fun startScanning() {
+        val adapter = (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter
+        if (adapter == null) { status.text = "Bluetooth is not available on this phone."; return }
+        if (!adapter.isEnabled) { startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), 42); return }
         if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) return
         if (scanner == null) {
             status.text = "This device does not have an available Bluetooth LE scanner."
