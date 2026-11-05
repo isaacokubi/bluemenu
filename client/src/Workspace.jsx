@@ -1,11 +1,13 @@
 import { useEffect,useState } from "react";
-import { QRCodeCanvas } from "qrcode.react";\nimport { enablePushNotifications } from "./pushNotifications.js";
+import { QRCodeCanvas } from "qrcode.react";
+import { enablePushNotifications } from "./pushNotifications.js";
 import { Copy,ExternalLink,ClipboardList,Users,CheckCircle2,ChevronDown,MessageSquare,History,Bluetooth } from "lucide-react";
 import { ArrowLeft,LogIn,LogOut,Plus,Store,Utensils,CalendarDays,Globe,Trash2,RefreshCw } from "lucide-react";
 const API="/api";
 async function request(path,{token,...options}={}){const response=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{}),...(options?.headers||{})}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"Request failed");return data;}
 export default function Workspace({onBack}) {
- const [token,setToken]=useState(()=>localStorage.getItem("bluemenu_token")||"");\n useEffect(()=>{if(!token)return;let unsubscribe=null,cancelled=false;enablePushNotifications(token).then(stop=>{if(cancelled)stop?.();else unsubscribe=stop;}).catch(error=>console.warn("BlueMenu push setup:",error.message));return()=>{cancelled=true;unsubscribe?.();};},[token]);
+ const [token,setToken]=useState(()=>localStorage.getItem("bluemenu_token")||"");
+ useEffect(()=>{if(!token)return;let unsubscribe=null,cancelled=false;enablePushNotifications(token).then(stop=>{if(cancelled)stop?.();else unsubscribe=stop;}).catch(error=>console.warn("BlueMenu push setup:",error.message));return()=>{cancelled=true;unsubscribe?.();};},[token]);
  const [billingPhone,setBillingPhone]=useState("");
  const [billingCycle,setBillingCycle]=useState("monthly");
  const [user,setUser]=useState(null),[data,setData]=useState(null),[subscription,setSubscription]=useState(null),[analytics,setAnalytics]=useState(null),[stock,setStock]=useState({items:[],movements:[]}),[ops,setOps]=useState({appointments:[],visitors:[],tickets:[],campaigns:[]}),[team,setTeam]=useState(null),[auditLogs,setAuditLogs]=useState([]),[advanced,setAdvanced]=useState({rooms:[],resolutions:[],notifications:[],attendanceReport:null,availability:[]}),[resolution,setResolution]=useState({agendaId:"",title:"",decision:"",description:""}),[roomForm,setRoomForm]=useState({locationId:"",roomNumber:"",roomType:"Standard",capacity:"2",ratePerNight:"0"}),[availabilityForm,setAvailabilityForm]=useState({locationId:"",checkIn:"",checkOut:"",roomType:""}),[mode,setMode]=useState("login"),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
