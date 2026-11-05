@@ -1,12 +1,12 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { Organization,Location,User,Invite } from "../models/index.js";
+import { Organization,Location,User,Invite,PasswordReset } from "../models/index.js";
 import crypto from "node:crypto";
 import { requireAuth } from "../middleware/auth.js";
 const router=Router();
 const slugify=value=>String(value||"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-const tokenFor=user=>jwt.sign({sub:user._id.toString(),role:user.role,organization:user.organization.toString()},process.env.JWT_SECRET,{expiresIn:"7d"});
+const tokenFor=user=>jwt.sign({sub:user._id.toString(),ver:user.tokenVersion||0,role:user.role,organization:user.organization.toString()},process.env.JWT_SECRET,{expiresIn:"7d"});
 router.post("/register",async(req,res,next)=>{try{
   const {name,email,password,organizationName,organizationType,locationName,address}=req.body||{};
   if(!name||!email||!password||!organizationName||!organizationType||!locationName)return res.status(400).json({error:"Name, email, password, organization name, organization type and first location are required"});
@@ -33,6 +33,10 @@ router.post("/login",async(req,res,next)=>{try{
 }catch(error){next(error);}});
 
 router.post("/accept-invite",async(req,res,next)=>{try{const {token,password}=req.body||{};if(!token||String(password||"").length<10)return res.status(400).json({error:"Invitation token and a password of at least 10 characters are required"});const tokenHash=crypto.createHash("sha256").update(String(token)).digest("hex");const invite=await Invite.findOne({tokenHash,acceptedAt:null,expiresAt:{$gt:new Date()}});if(!invite)return res.status(400).json({error:"This invitation is invalid, expired or already used"});if(await User.exists({email:invite.email}))return res.status(409).json({error:"An account already exists for this email"});const user=await User.create({name:invite.name,email:invite.email,passwordHash:await bcrypt.hash(password,12),role:invite.role,organization:invite.organization});invite.acceptedAt=new Date();await invite.save();res.status(201).json({token:tokenFor(user),user:{id:user._id,name:user.name,email:user.email,role:user.role,organization:user.organization}});}catch(e){next(e);}});
+
+
+router.post("/forgot-password",async(req,res,next)=>{try{const email=String(req.body?.email||"").trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(email))return res.status(400).json({error:"Enter a valid email address"});if(!process.env.RESEND_API_KEY||!process.env.RESEND_FROM_EMAIL)return res.status(503).json({error:"Password recovery email is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL."});const user=await User.findOne({email,active:true});if(user){await PasswordReset.deleteMany({user:user._id});const raw=crypto.randomBytes(32).toString("hex");const tokenHash=crypto.createHash("sha256").update(raw).digest("hex");await PasswordReset.create({user:user._id,tokenHash,expiresAt:new Date(Date.now()+30*60*1000)});const base=String(process.env.APP_BASE_URL||process.env.CLIENT_ORIGIN||"http://localhost:5173").split(",")[0].replace(/\/$/,"");const url=base+"/reset-password?token="+raw;const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:"Bearer "+process.env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:process.env.RESEND_FROM_EMAIL,to:[user.email],subject:"Reset your BlueMenu password",html:"<p>Hello "+user.name.replace(/[&<>"]/g,"")+" ,</p><p>Use the link below to reset your BlueMenu password. This link expires in 30 minutes.</p><p><a href=\""+url+"\">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>"})});if(!response.ok){await PasswordReset.deleteMany({user:user._id});throw new Error("Unable to send recovery email. Check your email provider configuration.");}}res.json({message:"If an active account exists for that email, password recovery instructions have been sent."});}catch(e){next(e);}});
+router.post("/reset-password",async(req,res,next)=>{try{const {token,password}=req.body||{};if(!token||String(password||"").length<10)return res.status(400).json({error:"A valid reset link and a password of at least 10 characters are required"});const tokenHash=crypto.createHash("sha256").update(String(token)).digest("hex");const reset=await PasswordReset.findOne({tokenHash,expiresAt:{$gt:new Date()}});if(!reset)return res.status(400).json({error:"This password reset link is invalid or expired"});const user=await User.findById(reset.user);if(!user||!user.active)return res.status(400).json({error:"This account is unavailable"});user.passwordHash=await bcrypt.hash(password,12);user.tokenVersion=(user.tokenVersion||0)+1;await user.save();await PasswordReset.deleteMany({user:user._id});res.json({message:"Password changed successfully. Please sign in again."});}catch(e){next(e);}});
 
 router.get("/me",requireAuth,(req,res)=>res.json({user:{id:req.user._id,name:req.user.name,email:req.user.email,role:req.user.role,organization:req.user.organization}}));
 export default router;
