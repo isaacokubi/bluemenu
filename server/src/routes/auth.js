@@ -1,7 +1,8 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { Organization,Location,User } from "../models/index.js";
+import { Organization,Location,User,Invite } from "../models/index.js";
+import crypto from "node:crypto";
 import { requireAuth } from "../middleware/auth.js";
 const router=Router();
 const slugify=value=>String(value||"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
@@ -30,5 +31,8 @@ router.post("/login",async(req,res,next)=>{try{
   user.lastLoginAt=new Date();await user.save();
   res.json({token:tokenFor(user),user:{id:user._id,name:user.name,email:user.email,role:user.role,organization:user.organization}});
 }catch(error){next(error);}});
+
+router.post("/accept-invite",async(req,res,next)=>{try{const {token,password}=req.body||{};if(!token||String(password||"").length<10)return res.status(400).json({error:"Invitation token and a password of at least 10 characters are required"});const tokenHash=crypto.createHash("sha256").update(String(token)).digest("hex");const invite=await Invite.findOne({tokenHash,acceptedAt:null,expiresAt:{$gt:new Date()}});if(!invite)return res.status(400).json({error:"This invitation is invalid, expired or already used"});if(await User.exists({email:invite.email}))return res.status(409).json({error:"An account already exists for this email"});const user=await User.create({name:invite.name,email:invite.email,passwordHash:await bcrypt.hash(password,12),role:invite.role,organization:invite.organization});invite.acceptedAt=new Date();await invite.save();res.status(201).json({token:tokenFor(user),user:{id:user._id,name:user.name,email:user.email,role:user.role,organization:user.organization}});}catch(e){next(e);}});
+
 router.get("/me",requireAuth,(req,res)=>res.json({user:{id:req.user._id,name:req.user.name,email:req.user.email,role:req.user.role,organization:req.user.organization}}));
 export default router;
