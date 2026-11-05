@@ -2,7 +2,7 @@ export function isSafeInformationUrl(value) {
   const url = String(value || "").trim();
   if (!url) return true;
   if (/^https:\/\/[^\s]+$/i.test(url)) return true;
-  return /^\/(?!\/)/.test(url) && !url.includes("\") && !/[\r\n]/.test(url);
+  return /^\/(?!\/)/.test(url) && !url.includes("\\") && !/[\r\n]/.test(url);
 }
 
 export function parsePublicationWindow(startsAt, endsAt) {
