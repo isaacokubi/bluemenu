@@ -1,22 +1,42 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import pg from "pg";
-const { Pool } = pg;
+import mongoose from "mongoose";
+import publicRoutes from "./routes/public.js";
+import adminRoutes from "./routes/admin.js";
+
 const app = express();
 const port = Number(process.env.PORT || 5000);
 app.use(cors({ origin: process.env.CLIENT_ORIGIN?.split(",") || true }));
 app.use(express.json({ limit: "1mb" }));
-const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL.includes("render.com") ? { rejectUnauthorized: false } : undefined }) : null;
-app.get("/api/health", async (_req, res) => {
-  let database = "not-configured";
-  if (pool) { try { await pool.query("SELECT 1"); database = "connected"; } catch { database = "unavailable"; } }
-  res.json({ ok: true, service: "BlueMenu API", version: "0.1.0", database, timestamp: new Date().toISOString() });
+
+app.get("/api/health", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "BlueMenu API",
+    version: "0.2.0",
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    timestamp: new Date().toISOString()
+  });
 });
-app.get("/api/demo", (_req, res) => res.json({
-  organization: { name: "BlueMenu Demo", type: "restaurant" },
-  menu: [{ category: "Popular", items: [{ name: "Grilled Chicken", description: "Herb-marinated chicken with seasonal sides", price: 850, currency: "KES" }, { name: "Fresh Juice", description: "Freshly squeezed seasonal fruit", price: 250, currency: "KES" }] }],
-  agenda: [{ title: "School Staff Meeting", date: "2026-11-10", items: ["Opening prayer", "Review of previous minutes", "Academic performance", "Action points"] }]
-}));
+app.use("/api/public", publicRoutes);
+app.use("/api/admin", adminRoutes);
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+});
 app.use((req, res) => res.status(404).json({ error: "Route not found", path: req.path }));
-app.listen(port, () => console.log(`BlueMenu API listening on ${port}`));
+
+async function start() {
+  if (!process.env.MONGODB_URI) {
+    console.error("MONGODB_URI is missing. Copy server/.env.example to server/.env and configure MongoDB Atlas.");
+    process.exit(1);
+  }
+  await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+  console.log("BlueMenu connected to MongoDB.");
+  app.listen(port, () => console.log(`BlueMenu API listening on ${port}`));
+}
+start().catch(error => {
+  console.error("Unable to start BlueMenu:", error.message);
+  process.exit(1);
+});
