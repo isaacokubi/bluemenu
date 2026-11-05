@@ -1,7 +1,8 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import { Order, Campaign, Location, PaymentTransaction } from "../models/index.js";
 import { Subscription } from "../models/Subscription.js";
-import { normalizePhone, verifyDarajaCallback } from "../services/daraja.js";
+import { normalizePhone, verifyDarajaCallback, queryStkPush } from "../services/daraja.js";
 
 const router = Router();
 
@@ -153,4 +154,30 @@ router.post("/daraja/callback", async (req, res, next) => {
   }
 });
 
+
+router.post("/daraja/reconcile",async(req,res,next)=>{try{
+ const expected=String(process.env.DARAJA_RECONCILE_SECRET||""),provided=String(req.get("x-reconcile-secret")||"");
+ if(!expected||Buffer.byteLength(expected)!==Buffer.byteLength(provided)||!crypto.timingSafeEqual(Buffer.from(expected),Buffer.from(provided)))return res.status(401).json({error:"Unauthorized reconciliation request"});
+ const cutoff=new Date(Date.now()-2*60000);
+ const [subscriptions,campaigns,orders]=await Promise.all([
+  Subscription.find({paymentStatus:"pending",checkoutRequestId:{$exists:true,$ne:null},updatedAt:{$lte:cutoff}}).limit(50),
+  Campaign.find({paymentStatus:"pending",checkoutRequestId:{$exists:true,$ne:null},updatedAt:{$lte:cutoff}}).limit(50),
+  Order.find({paymentMethod:"mpesa",paymentStatus:"pending",checkoutRequestId:{$exists:true,$ne:null},updatedAt:{$lte:cutoff}}).limit(50)
+ ]);
+ const results=[];
+ for(const [kind,items] of [["subscription",subscriptions],["campaign",campaigns],["order",orders]]){
+  for(const item of items){
+   try{
+    const query=await queryStkPush(item.checkoutRequestId),code=String(query.ResultCode??"");
+    if(code&&code!=="0"){
+     item.paymentStatus="failed";
+     if(kind==="subscription"){item.lastRenewalError=String(query.ResultDesc||"M-Pesa request failed").slice(0,300);if(item.autoRenewEnabled)item.status=item.graceEndsAt&&item.graceEndsAt>new Date()?"past_due":"suspended";}
+     await item.save();
+     results.push({kind,id:String(item._id),status:"failed",reason:String(query.ResultDesc||"")});
+    }else results.push({kind,id:String(item._id),status:"awaiting_verified_callback",reason:String(query.ResultDesc||"")});
+   }catch(error){results.push({kind,id:String(item._id),status:"query_error",reason:String(error.message||"").slice(0,200)});}
+  }
+ }
+ res.json({checked:results.length,results,note:"STK query success does not settle a payment. Activation still requires the verified callback with matching amount, phone and receipt."});
+ }catch(e){next(e);}});
 export default router;
