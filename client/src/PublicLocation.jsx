@@ -1,5 +1,5 @@
 import { useEffect,useMemo,useState } from "react";
-import { Bluetooth,MapPin,CalendarDays,Utensils,Clock,ShoppingBag,Plus,Minus,Send,Wrench,CheckCircle2 } from "lucide-react";
+import { Bluetooth,MapPin,CalendarDays,Utensils,Clock,ShoppingBag,Plus,Minus,Send,Wrench,CheckCircle2,MessageSquare } from "lucide-react";
 export default function PublicLocation({slug}) {
  const [location,setLocation]=useState(null),[menus,setMenus]=useState([]),[agendas,setAgendas]=useState([]),[campaigns,setCampaigns]=useState([]),[information,setInformation]=useState([]),[error,setError]=useState(""),[loading,setLoading]=useState(true);
  const [cart,setCart]=useState({}),[customer,setCustomer]=useState({customerName:"",customerPhone:"",customerEmail:"",orderType:"takeaway",tableOrRoom:"",notes:"",paymentMethod:"pay_at_venue"}),[orderBusy,setOrderBusy]=useState(false),[orderResult,setOrderResult]=useState(null),[orderError,setOrderError]=useState("");
