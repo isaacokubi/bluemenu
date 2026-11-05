@@ -13,6 +13,7 @@ import subscriptionRoutes from "./routes/subscriptions.js";
 import aiRoutes from "./routes/ai.js";
 import advancedRoutes from "./routes/advanced.js";
 import publicBookingRoutes from "./routes/public-bookings.js";
+import pushRoutes from "./routes/push.js";
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
@@ -57,6 +58,7 @@ app.use("/api/public-bookings", publicLimiter, publicBookingRoutes);
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/workspace", workspaceRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/push", pushRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/workspace", advancedRoutes);
