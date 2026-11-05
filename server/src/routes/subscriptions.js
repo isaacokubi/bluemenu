@@ -41,11 +41,11 @@ router.post("/cancel-request",requireAuth,allowRoles("owner"),async(req,res,next
 router.post("/reconcile",async(req,res,next)=>{try{
  const expected=String(process.env.BILLING_RECONCILE_SECRET||""),provided=String(req.get("x-billing-reconcile-secret")||"");
  if(!expected||provided.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(provided),Buffer.from(expected)))return res.status(401).json({error:"Unauthorized billing reconciliation"});
- const now=new Date(),subscriptions=await Subscription.find({status:{$in:["active","past_due"]},currentPeriodEndsAt:{$lte:now}}).limit(500);
+ const now=new Date(),subscriptions=await Subscription.find({$or:[{status:"trialing",trialEndsAt:{$lte:now}},{status:"active",currentPeriodEndsAt:{$lte:now}},{status:"past_due",graceEndsAt:{$lte:now}}]}).limit(500);
  let pastDue=0,suspended=0;
  for(const subscription of subscriptions){
-  if(subscription.status==="active"){
-   subscription.status="past_due";pastDue++;
+  if(subscription.status==="active"||subscription.status==="trialing"){
+   subscription.status="past_due";subscription.graceEndsAt=new Date(now.getTime()+7*86400000);pastDue++;
    const organization=await Organization.findById(subscription.organization).select("name");
    const title="BlueMenu subscription payment due",message="Your "+(organization?.name||"workspace")+" subscription period has ended. Renew to avoid service suspension.";
    await Notification.create({organization:subscription.organization,title,message,type:"billing"});
