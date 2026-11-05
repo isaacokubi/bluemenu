@@ -132,6 +132,17 @@ The Daraja callback must be publicly reachable over HTTPS. BlueMenu rejects HTTP
 
 **Production checklist:** configure MongoDB, JWT, exact CORS origins, HTTPS app/API URLs, Cloudinary, a verified Resend sender and Daraja production credentials. Live payments, email delivery, media uploads and beacon hardware need real provider credentials and field testing.
 
+## Platform super administrator
+
+Provision the initial BlueMenu platform administrator from the server environment (never commit credentials):
+
+```bash
+cd server
+ADMIN_EMAIL=izobrack@gmail.com ADMIN_NAME="BlueMenu Super Administrator" ADMIN_PASSWORD='your-strong-password' npm run admin:bootstrap
+```
+
+The bootstrap script hashes the password with bcrypt, creates or reuses the dedicated `BlueMenu Platform` organization and platform location, and is idempotent for an existing `super_admin`. It refuses to elevate an existing ordinary account. Keep the password in a secure environment/secret manager and rotate it after first sign-in. The account uses the normal Business portal sign-in; its role is `super_admin`.
+
 ## Plans and subscription billing
 
 BlueMenu creates a 14-day Starter trial for new organizations. The workspace shows plan status and self-service pricing (KES):
