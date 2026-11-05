@@ -85,7 +85,7 @@ async function start() {
     console.error("MONGODB_URI is missing. Copy server/.env.example to server/.env and configure MongoDB Atlas.");
     process.exit(1);
   }
-  await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+  await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
   await ensureDeviceTokenIndexes();
   console.log("BlueMenu connected to MongoDB.");
   const server = app.listen(port, () => console.log(`BlueMenu API listening on ${port}`));
