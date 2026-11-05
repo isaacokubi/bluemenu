@@ -205,6 +205,11 @@ class MainActivity : Activity() {
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(body)
                 val location = json.getJSONObject("location")
+                val slug = location.optString("publicSlug", "")
+                if (slug.isNotBlank()) {
+                    getSharedPreferences("bluemenu", MODE_PRIVATE).edit().putString("public_slug", slug).apply()
+                    try { FirebaseMessaging.getInstance().token.addOnSuccessListener { token -> PushRegistration.register(this, token, slug) } } catch (_: Exception) { }
+                }
                 val device = json.getJSONObject("device")
                 val target = device.getString("targetUrl")
                 val publicUrl = if (target.startsWith("https://")) target else base + if (target.startsWith("/")) target else "/$target"
