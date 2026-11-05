@@ -26,7 +26,8 @@ router.post("/daraja/callback", async (req, res, next) => {
         subscription.plan=subscription.requestedPlan;subscription.billingCycle=subscription.requestedBillingCycle;
         subscription.status="active";subscription.currentPeriodStartsAt=now;subscription.currentPeriodEndsAt=new Date(now.getTime()+duration*86400000);
         subscription.graceEndsAt=new Date(subscription.currentPeriodEndsAt.getTime()+7*86400000);
-        await PaymentTransaction.create({checkoutRequestId:result.checkoutRequestId,merchantRequestId:subscription.merchantRequestId,organization:subscription.organization,kind:"subscription",entityId:subscription._id,amount:result.amount,phone:callbackPhone,status:"paid",receipt:result.receipt,resultCode:result.resultCode,resultDescription:result.resultDescription,callbackAt:now});\n        subscription.lastPaymentReference=result.receipt;subscription.lastPaymentAt=now;subscription.paymentStatus="paid";
+        await PaymentTransaction.create({checkoutRequestId:result.checkoutRequestId,merchantRequestId:subscription.merchantRequestId,organization:subscription.organization,kind:"subscription",entityId:subscription._id,amount:result.amount,phone:callbackPhone,status:"paid",receipt:result.receipt,resultCode:result.resultCode,resultDescription:result.resultDescription,callbackAt:now});
+        subscription.lastPaymentReference=result.receipt;subscription.lastPaymentAt=now;subscription.paymentStatus="paid";
       }else{subscription.paymentStatus="failed";}
       await subscription.save();
       return res.status(200).json({ResultCode:0,ResultDesc:"Subscription callback processed"});
