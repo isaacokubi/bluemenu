@@ -48,5 +48,16 @@ export async function replayOfflineCommand({ organization,user,eventType,payload
     await StockMovement.create([{inventoryItem:item._id,location:location._id,organization,actor:user,type:"receive",quantity,before:updated.quantity-quantity,after:updated.quantity,reason:String(data.reason||"Offline sync").slice(0,300)}],{session});
     return {entity:"inventory_item",id:String(item._id),quantity:updated.quantity};
   }
-  throw new Error("Unsupported offline command. Allowed: queue.create, visitor.checkin, appointment.create, attendance.checkin, inventory.receive");
+  if(eventType==="inventory.issue"){
+    if(!validId(data.inventoryItemId))throw new Error("A valid inventoryItemId is required");
+    const quantity=Number(data.quantity);
+    if(!Number.isSafeInteger(quantity)||quantity<1||quantity>1000000)throw new Error("quantity must be a positive whole number");
+    const item=await InventoryItem.findOne({_id:data.inventoryItemId,location:location._id,active:true}).session(session);
+    if(!item)throw new Error("Inventory item was not found in this location");
+    const updated=await InventoryItem.findOneAndUpdate({_id:item._id,location:location._id,quantity:{$gte:quantity}},{$inc:{quantity:-quantity}},{new:true,session});
+    if(!updated)throw new Error("Insufficient stock for this offline issue");
+    await StockMovement.create([{inventoryItem:item._id,location:location._id,organization,actor:user,type:"issue",quantity,before:updated.quantity+quantity,after:updated.quantity,reason:String(data.reason||"Offline sync").slice(0,300)}],{session});
+    return {entity:"inventory_item",id:String(item._id),quantity:updated.quantity};
+  }
+  throw new Error("Unsupported offline command. Allowed: queue.create, visitor.checkin, appointment.create, attendance.checkin, inventory.receive, inventory.issue");
 }
