@@ -1,0 +1,10 @@
+import "dotenv/config";
+import pg from "pg";
+import { readFile } from "node:fs/promises";
+import { Pool } from "pg";
+if (!process.env.DATABASE_URL) throw new Error("Set DATABASE_URL in server/.env first");
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const schema = await readFile(new URL("./schema.sql", import.meta.url), "utf8");
+await pool.query(schema);
+console.log("BlueMenu database schema installed.");
+await pool.end();
