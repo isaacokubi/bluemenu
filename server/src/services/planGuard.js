@@ -5,8 +5,9 @@ export async function assertPlanAllows(organization,resource){
  let subscription=await Subscription.findOne({organization});
  if(!subscription)subscription=await Subscription.create({organization});
  const now=new Date();
- if(subscription.status==="trialing"&&subscription.trialEndsAt<=now)return {status:402,error:"Your 14-day trial has ended. Choose a plan to continue creating content."};
- if(["past_due","suspended","cancelled"].includes(subscription.status))return {status:402,error:"Your subscription is not active. Resolve billing to continue creating content."};
+ if(subscription.status==="trialing"&&subscription.trialEndsAt<=now){subscription.status="past_due";subscription.graceEndsAt=new Date(now.getTime()+7*86400000);await subscription.save();}
+ if(subscription.status==="past_due"&&(!subscription.graceEndsAt||subscription.graceEndsAt<=now))return {status:402,error:"Your subscription grace period has ended. Renew to continue creating content."};
+ if(["suspended","cancelled"].includes(subscription.status))return {status:402,error:"Your subscription is not active. Resolve billing to continue creating content."};
  if(subscription.status==="active"&&subscription.currentPeriodEndsAt<=now&&(!subscription.graceEndsAt||subscription.graceEndsAt<=now))return {status:402,error:"Your subscription renewal is overdue. Renew to continue creating content."};
  const plan=PLAN_CATALOG[subscription.plan]||PLAN_CATALOG.starter;
  const limit=plan.limits[resource];
