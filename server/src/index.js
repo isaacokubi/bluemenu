@@ -24,6 +24,7 @@ app.use(helmet({crossOriginResourcePolicy:{policy:"cross-origin"}}));
 app.use(cors({origin:(origin,callback)=>{if(!origin||allowedOrigins.includes(origin))return callback(null,true);return callback(new Error("Origin is not allowed by CORS"));}}));
 const authLimiter=rateLimit({windowMs:15*60*1000,limit:12,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many sign-in or recovery attempts. Try again later."}});
 const publicLimiter=rateLimit({windowMs:15*60*1000,limit:120,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many requests. Please try again later."}});
+const aiLimiter=rateLimit({windowMs:60*1000,limit:12,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"AI request limit reached. Please retry in a minute."}});
 app.use(express.json({ limit: "1mb" }));
 const apiLimiter=rateLimit({windowMs:60*1000,limit:240,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Too many API requests. Please retry shortly."}});
 app.use("/api",apiLimiter);
@@ -63,7 +64,7 @@ app.use("/api/workspace", productionRoutes);
 app.use("/api/workspace", workspaceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
-app.use("/api/ai", aiRoutes);
+app.use("/api/ai", aiLimiter, aiRoutes);
 app.use("/api/workspace", advancedRoutes);
 app.use("/api/admin", adminRoutes);
 app.use((err, _req, res, _next) => {
