@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { RoomNight,TableSlot,OfflineEvent,PaymentTransaction,DeviceToken,Reservation,TableBooking,Campaign } from "../src/models/index.js";
+import { RoomNight,TableSlot,OfflineEvent,PaymentTransaction,DeviceToken,Reservation,TableBooking,Campaign,CampaignSettlement } from "../src/models/index.js";
 
 const uniqueIndex = (model, fields) => model.schema.indexes().some(([keys, options]) =>
   options.unique === true && Object.keys(keys).join(",") === fields.join(",")
@@ -33,4 +33,5 @@ test("sponsored campaigns require a paid state and moderation state", () => {
   assert.ok(Campaign.schema.path("paymentStatus"));
   assert.ok(Campaign.schema.path("reviewStatus"));
   assert.ok(Campaign.schema.path("checkoutRequestId"));
+  assert.equal(uniqueIndex(CampaignSettlement, ["campaign"]), true);
 });
