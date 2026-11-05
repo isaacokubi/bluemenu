@@ -1,0 +1,36 @@
+{
+  "rewrites": [
+    {
+      "source": "/menus",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/agendas",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/discover",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/how-it-works",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/p/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/accept-invite",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/forgot-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/index.html"
+    }
+  ]
+}
