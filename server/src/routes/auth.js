@@ -19,7 +19,7 @@ router.post("/register",async(req,res,next)=>{try{
     const location=await Location.create({organization:organization._id,name:locationName,address,publicSlug:slugify(locationName)+"-"+Math.random().toString(36).slice(2,7)});
     const user=await User.create({name,email:String(email).toLowerCase().trim(),passwordHash:await bcrypt.hash(password,12),role:"owner",organization:organization._id});
     res.status(201).json({token:tokenFor(user),user:{id:user._id,name:user.name,email:user.email,role:user.role},organization:{id:organization._id,name:organization.name,type:organization.type},location:{id:location._id,name:location.name,publicSlug:location.publicSlug}});
-  }catch(error){await Organization.findByIdAndDelete(organization._id);throw error;}
+  }catch(error){await Location.deleteMany({organization:organization._id});await Organization.findByIdAndDelete(organization._id);throw error;}
 }catch(error){next(error);}});
 router.post("/login",async(req,res,next)=>{try{
   const email=String(req.body?.email||"").toLowerCase().trim(),password=String(req.body?.password||"");
