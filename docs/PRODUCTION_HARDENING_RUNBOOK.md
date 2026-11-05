@@ -41,7 +41,7 @@ BILLING_RECONCILE_SECRET=... \
 npm run reconcile -w server
 ```
 
-Run it every 10–15 minutes using a Render Cron Job or another trusted scheduler. The job exits non-zero if an endpoint or secret is unavailable.
+The repository includes `.github/workflows/reconcile.yml`, scheduled every 15 minutes and manually runnable. Add GitHub Actions secrets `API_BASE_URL`, `DARAJA_RECONCILE_SECRET`, and `BILLING_RECONCILE_SECRET` to enable it. Alternatively, run the command from a Render Cron Job every 10–15 minutes. The job exits non-zero if an endpoint or secret is unavailable.
 
 ## 4. Sponsored advertising marketplace
 
