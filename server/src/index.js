@@ -6,6 +6,7 @@ import publicRoutes from "./routes/public.js";
 import adminRoutes from "./routes/admin.js";
 import authRoutes from "./routes/auth.js";
 import workspaceRoutes from "./routes/workspace.js";
+import paymentRoutes from "./routes/payments.js";
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
@@ -24,6 +25,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/public", publicRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/workspace", workspaceRoutes);
+app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
 app.use((err, _req, res, _next) => {
   console.error(err);
