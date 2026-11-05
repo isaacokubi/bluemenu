@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { Agenda, Location, Menu, Order, ServiceRequest, Attendance, DiscoveryDevice,Appointment,Visitor,QueueTicket,Campaign,InformationItem,TransportRoute,EventTicket } from "../models/index.js";
 import crypto from "node:crypto";
-import { initiateStkPush } from "../services/daraja.js";
+import { initiateStkPush, normalizePhone } from "../services/daraja.js";
 const router=Router();
 router.get("/discovery/:identifier",async(req,res,next)=>{try{const device=await DiscoveryDevice.findOne({identifier:String(req.params.identifier).toLowerCase(),active:true}).populate({path:"location",populate:{path:"organization",select:"name type"}}).lean();if(!device||!device.location)return res.status(404).json({error:"No active BlueMenu discovery point found"});res.json({location:{name:device.location.name,publicSlug:device.location.publicSlug,organization:device.location.organization},device:{type:device.deviceType,targetUrl:device.targetUrl}});}catch(e){next(e);}});
 router.get("/location/:slug",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).populate("organization","name type logoUrl");if(!location)return res.status(404).json({error:"Location not found"});res.json({location});}catch(e){next(e);}});
 router.get("/location/:slug/transport",async(req,res,next)=>{try{const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});const routes=await TransportRoute.find({organization:location.organization,location:location._id,active:true}).select("name routeCode origin destination stops departures").sort({name:1}).limit(100).lean();res.json({routes});}catch(e){next(e);}});
 router.post("/location/:slug/events/:eventId/tickets",async(req,res,next)=>{try{
  const location=await Location.findOne({publicSlug:req.params.slug}).select("_id organization");if(!location)return res.status(404).json({error:"Location not found"});
- if(!/^[a-f\\d]{24}$/i.test(req.params.eventId))return res.status(400).json({error:"Invalid event"});
+ if(!/^[a-f\d]{24}$/i.test(req.params.eventId))return res.status(400).json({error:"Invalid event"});
  const event=await InformationItem.findOne({_id:req.params.eventId,organization:location.organization,type:"event",published:true,visibility:"public",$or:[{location:null},{location:location._id}]});if(!event)return res.status(404).json({error:"Event not found"});
  if(event.endsAt&&event.endsAt<new Date())return res.status(410).json({error:"Ticket sales for this event have closed"});
  const {customerName,customerPhone,customerEmail}=req.body||{};const name=String(customerName||"").trim().slice(0,120),phone=normalizePhone(customerPhone),key=String(req.get("Idempotency-Key")||"").trim().slice(0,120);
