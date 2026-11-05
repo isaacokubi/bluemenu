@@ -149,3 +149,9 @@ The API exposes `GET /api/subscriptions/plans`, authenticated `GET /api/subscrip
 - **Queue management:** public `POST /api/public/location/:slug/queue`; staff monitor and update `/api/workspace/queue`.
 - **School meeting follow-up:** agenda records now include meeting type/status, minutes and action items with owners, due dates and workflow status.
 - **Analytics:** owner/manager-only `GET /api/workspace/analytics?days=30` returns organization-scoped paid revenue, order totals, attendance, service request counts and published content.
+
+## Optional AI assistance
+Configure `OPENAI_API_KEY` and optionally `AI_MODEL` on the server to enable:
+- `POST /api/ai/menu-description` — draft a menu description in English or Kiswahili using only supplied details.
+- `POST /api/ai/meeting-assistant` — structure agendas, summarize meeting notes, draft minutes or extract action items from supplied text.
+AI endpoints require an authenticated workspace user, enforce input size limits and do not expose provider credentials to the browser. Review AI-generated content before publishing.
