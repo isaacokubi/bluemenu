@@ -15,10 +15,7 @@ export default function Workspace({onBack}) {
  const [newCampaign,setNewCampaign]=useState({locationId:"",title:"Special offer",message:"",imageUrl:"",targetUrl:""});
  const [form,setForm]=useState({name:"",email:"",password:"",organizationName:"",organizationType:"restaurant",locationName:"Main location",address:""});
  const [menu,setMenu]=useState({locationId:"",title:"Main Menu",categoryName:"Popular",items:[{name:"",description:"",price:"",imageUrl:""}]}),[editingMenuId,setEditingMenuId]=useState("");
- const [agenda,setAgenda]=useState({locationId:"",title:"Staff Meeting Agenda",meetingDate:"",venue:"",items:"Opening prayer
-Confirmation of previous minutes
-Reports and discussion
-Action points",minutes:"",actionItems:""}),[editingAgendaId,setEditingAgendaId]=useState("");
+ const [agenda,setAgenda]=useState({locationId:"",title:"Staff Meeting Agenda",meetingDate:"",venue:"",items:"Opening prayer\\nConfirmation of previous minutes\\nReports and discussion\\nAction points",minutes:"",actionItems:""}),[editingAgendaId,setEditingAgendaId]=useState("");
  useEffect(()=>{if(window.location.hash){window.history.replaceState(null,"",window.location.pathname+window.location.search);}window.scrollTo(0,0);},[]);
  const canEdit=user?.role!=="viewer";
  const set=(key,value)=>setForm(old=>({...old,[key]:value}));
