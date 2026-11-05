@@ -30,8 +30,8 @@ This document maps the approved BlueMenu Smart Information Ecosystem proposal to
 | Announcements, documents, events and digital signage | InformationItem model and information routes; signage content type | Partial; verify display/player client, scheduling, expiry, access and emergency priority |
 | Transport routes and timetables | TransportRoute schema evidence | Partial; verify complete CRUD/public timetable UI, fares, schedule timezone and tests |
 | Customer loyalty | Loyalty account/transaction schema evidence | Partial; verify earn/redeem APIs, atomic balance updates, idempotency and customer UI |
-| Lost and found | No sufficient end-to-end evidence established in this audit | Not evidenced; implement tenant-scoped reports, claims, moderation, status and retention |
-| Department/building directories and navigation | No sufficient end-to-end evidence established in this audit | Not evidenced; implement location-scoped directory entries, searchable public view and access controls |
+| Lost and found | InformationItem-backed tenant-scoped reports, moderation, public open-record feed, atomic first-claim request and staff approve/reopen/return controls | Implemented (code evidence); validate abuse controls, retention policy, claim identity checks and full lifecycle with pilot users |
+| Department/building directories and navigation | InformationItem-backed location-scoped directory records, workspace authoring and public directory cards | Partial; directory browsing is implemented, but searchable filtering, map/navigation integration and pilot content verification remain |
 | Digital document distribution | InformationItem document type is present | Partial; secure file handling, audience permissions, expiry and download audit required |
 | Advertising and nearby promotions | Campaign model, public feed and payment lifecycle documented | Partial; validate paid/unpaid lifecycle, budgets, date windows and consent |
 | AI menu and meeting assistance | Authenticated AI routes documented | Partial; provider key, rate/cost limits, output validation and human approval required |
