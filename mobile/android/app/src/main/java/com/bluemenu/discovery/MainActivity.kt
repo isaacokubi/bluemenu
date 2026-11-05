@@ -118,9 +118,11 @@ class MainActivity : Activity() {
             startScanning()
         } else if (requestCode == 41) {
             status.text = "Bluetooth permission is required to discover nearby BlueMenu beacons."
-        } else if (requestCode == 43 && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+        } else if (requestCode == 43 && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
             startBackgroundDiscovery()
         } else if (requestCode == 43) { status.text = "Notification permission is needed to show background discovery status." }
+        else if (requestCode == 44 && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) { startBackgroundDiscovery() }
+        else if (requestCode == 44) { status.text = "Bluetooth permission is required for background discovery." }
     }
 
     private fun requestBackgroundDiscovery() {
@@ -132,10 +134,12 @@ class MainActivity : Activity() {
     }
 
     private fun startBackgroundDiscovery() {
-        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-            requestScanPermissionAndStart()
-            return
-        }
+        val needed = if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        val missing = needed.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) { requestPermissions(missing.toTypedArray(), 44); return }
+        val adapter = (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter
+        if (adapter == null) { status.text = "Bluetooth is not available on this phone."; return }
+        if (!adapter.isEnabled) { status.text = "Turn on Bluetooth to enable background discovery."; startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), 45); return }
         try {
             val intent = Intent(this, BeaconScanService::class.java)
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
@@ -143,6 +147,12 @@ class MainActivity : Activity() {
         } catch (error: Exception) {
             status.text = "Could not enable background discovery: ${error.message}"
         }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 42 && resultCode == RESULT_OK) startScanning()
+        if (requestCode == 45 && resultCode == RESULT_OK) startBackgroundDiscovery()
     }
 
     private fun startScanning() {
