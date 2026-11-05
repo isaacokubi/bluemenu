@@ -94,3 +94,17 @@ Before pilot sign-off, test with two independent staff sessions:
 - Verify an item assigned to another tenant's location cannot be read or changed.
 - Verify external resource and image URLs accept HTTPS or relative paths and reject unsafe schemes such as javascript:.
 - Verify invalid date ranges are rejected.
+
+
+## MongoDB collection-limit incident response
+
+The application uses a fixed set of shared Mongoose collections. It must not create a collection per customer, location, user or tenant. A MongoDB error such as `cannot create a new collection -- already using 502 collections of 500` means the connected database has already exceeded the provider's configured collection ceiling; a frontend change cannot increase that database quota.
+
+1. Take and verify a full database backup before any cleanup.
+2. Run the read-only inventory from the repository root: `node server/scripts/audit-collections.js` (with `server/.env` configured). It reports collection names and estimated document counts and never deletes data.
+3. Compare the output with the current application model collection names in `server/src/models/index.js`. Identify legacy, test, temporary and abandoned collections with the database owner.
+4. Export any required data and verify the export before considering an obsolete collection for archival/removal. Never drop a collection solely because it is empty; TTL, migration or scheduled workflows may depend on it.
+5. If the required collections are all active, increase the database tier/provider collection quota or migrate to a MongoDB deployment with sufficient capacity. Confirm replica-set/transaction support before moving production traffic.
+6. Re-run the inventory and verify writes, booking allocation, payments, audit logging and tenant isolation in staging before production rollout.
+
+The owner-only `GET /api/workspace/database-health` endpoint reports collection usage without exposing collection names. Workspaces display a warning from 450 collections onward. No automatic collection deletion or destructive cleanup is performed.
