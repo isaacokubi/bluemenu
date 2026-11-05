@@ -21,6 +21,9 @@ const attendanceSchema=new Schema({location:{type:Schema.Types.ObjectId,ref:"Loc
 const passwordResetSchema=new Schema({user:{type:Schema.Types.ObjectId,ref:"User",required:true,index:true},tokenHash:{type:String,required:true,unique:true},expiresAt:{type:Date,required:true}},{timestamps:true});
 passwordResetSchema.index({expiresAt:1},{expireAfterSeconds:0});
 export const PasswordReset=model("PasswordReset",passwordResetSchema);
+const auditLogSchema=new Schema({organization:{type:Schema.Types.ObjectId,ref:"Organization",required:true,index:true},actor:{type:Schema.Types.ObjectId,ref:"User"},action:{type:String,required:true},entityType:{type:String,required:true},entityId:String,details:{type:Schema.Types.Mixed,default:{}},ipAddress:String,userAgent:String},{timestamps:true});
+auditLogSchema.index({organization:1,createdAt:-1});
+export const AuditLog=model("AuditLog",auditLogSchema);
 export const User=model("User",userSchema);
 export const Organization=model("Organization",organizationSchema);
 export const Location=model("Location",locationSchema);
