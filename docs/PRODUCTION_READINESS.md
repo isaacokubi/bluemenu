@@ -66,7 +66,9 @@ Before pilot sign-off, test with two independent staff sessions:
 7. Test Daraja sandbox success, cancellation, timeout, duplicate callback, wrong amount, wrong phone and duplicate receipt. Only provider-verified callback may settle a payment.
 8. Test paid/unpaid ad campaign lifecycle, callback retries, date windows, click tracking and budget reporting.
 9. Verify AI outputs preserve IDs, ingredients, allergen notes and prices; manually review translations before publication.
-10. Verify the payment ledger rejects reused checkout IDs/receipts and that sponsored campaigns remain unpublished until paid and approved.\n11. Verify publisher settlement share calculations, payout-phone configuration and manual payout-reference audit trail; do not treat a manually entered reference as an automated B2C transfer.\n12. Run tenant-isolation tests, role tests, CSRF/CORS checks, rate-limit checks, secret scanning, production dependency audit, backup restore and data deletion/export exercises.
+10. Verify the payment ledger rejects reused checkout IDs/receipts and that sponsored campaigns remain unpublished until paid and approved.
+11. Verify publisher settlement share calculations, payout-phone configuration and manual payout-reference audit trail; do not treat a manually entered reference as an automated B2C transfer.
+12. Run tenant-isolation tests, role tests, CSRF/CORS checks, rate-limit checks, secret scanning, production dependency audit, backup restore and data deletion/export exercises.
 
 ## Known release blockers / honest boundaries
 
