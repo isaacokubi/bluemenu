@@ -54,4 +54,6 @@ export const StockMovement=model("StockMovement",stockMovementSchema);
 export const Appointment=model("Appointment",appointmentSchema);
 export const Visitor=model("Visitor",visitorSchema);
 export const QueueTicket=model("QueueTicket",queueTicketSchema);
-export const Campaign=model("Campaign",campaignSchema);\nexport const Reservation=model("Reservation",reservationSchema);\nexport const TableBooking=model("TableBooking",tableBookingSchema);
+export const Campaign=model("Campaign",campaignSchema);
+export const Reservation=model("Reservation",reservationSchema);
+export const TableBooking=model("TableBooking",tableBookingSchema);
