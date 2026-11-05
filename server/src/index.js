@@ -16,6 +16,7 @@ import productionRoutes from "./routes/production.js";
 import publicBookingRoutes from "./routes/public-bookings.js";
 import informationRoutes from "./routes/information.js";
 import ecosystemRoutes from "./routes/ecosystem.js";
+import mediaRoutes from "./routes/media.js";
 import { ensureDeviceTokenIndexes } from "./services/maintenance.js";
 
 const app = express();
@@ -65,6 +66,7 @@ app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/workspace", productionRoutes);
 app.use("/api/workspace", informationRoutes);
 app.use("/api/workspace", ecosystemRoutes);
+app.use("/api/workspace", mediaRoutes);
 app.use("/api/workspace", workspaceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
