@@ -3,6 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 val releaseStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
 val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
@@ -44,4 +46,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+}
+
+dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
 }
