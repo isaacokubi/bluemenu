@@ -38,3 +38,22 @@ test("rejects callbacks without a checkout identifier or valid result code", () 
   assert.equal(verifyDarajaCallback({ Body: { stkCallback: { ResultCode: 0 } } }), null);
   assert.equal(verifyDarajaCallback({ Body: { stkCallback: { CheckoutRequestID: "x", ResultCode: "not-a-code" } } }), null);
 });
+
+test("requires an HTTPS callback and all required Daraja settings", async () => {
+  const { darajaConfigurationError } = await import("../src/services/daraja.js");
+  const base = {
+    DARAJA_CONSUMER_KEY: "key",
+    DARAJA_CONSUMER_SECRET: "secret",
+    DARAJA_SHORTCODE: "174379",
+    DARAJA_PASSKEY: "passkey",
+    DARAJA_CALLBACK_URL: "https://api.example.com/api/payments/daraja/callback"
+  };
+  assert.equal(darajaConfigurationError(base), null);
+  assert.match(darajaConfigurationError({ ...base, DARAJA_CALLBACK_URL: "http://localhost:5000/callback" }), /HTTPS/);
+  assert.match(darajaConfigurationError({ ...base, DARAJA_TRANSACTION_TYPE: "CustomerBuyGoodsOnline" }), /DARAJA_TILL_NUMBER/);
+  assert.equal(darajaConfigurationError({ ...base, DARAJA_TRANSACTION_TYPE: "CustomerBuyGoodsOnline", DARAJA_TILL_NUMBER: "123456" }), null);
+});
+
+test("rejects negative Daraja result codes", () => {
+  assert.equal(verifyDarajaCallback({ Body: { stkCallback: { CheckoutRequestID: "x", ResultCode: -1 } } }), null);
+});
