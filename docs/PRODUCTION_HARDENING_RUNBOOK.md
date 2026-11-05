@@ -47,7 +47,7 @@ The repository includes `.github/workflows/reconcile.yml`, scheduled every 15 mi
 
 Workspace owners/managers can submit a sponsored campaign through `POST /api/workspace/advertising/campaigns`. The campaign is charged using an M-Pesa STK request, remains unpublished while payment is pending, and requires review approval after payment. Existing non-sponsored campaigns retain the existing publishing workflow.
 
-This release records the sponsor charge and campaign ledger. **Advertiser payouts/revenue-share settlement are not automated.** That requires Safaricom B2C/settlement product approval, initiator/security credentials, payout callback endpoints, tax/invoice rules, and a reconciled settlement account. Do not advertise automated payouts until those are implemented and tested.
+This release records sponsor charges and creates a publisher settlement ledger when a paid campaign is approved. Each location can configure a payout phone and publisher revenue share (default 70%); the ledger records gross amount, platform fee and publisher amount. An owner/manager can record a payout reference after verifying the actual transfer. **The transfer itself is not automated.** Automated B2C payout requires Safaricom B2C/settlement product approval, initiator/security credentials, payout callback endpoints, tax/invoice rules, and a reconciled settlement account. Do not advertise automatic payouts until those are implemented and tested.
 
 ## 5. AI menu recommendations
 
