@@ -172,7 +172,7 @@ class MainActivity : Activity() {
             results.removeAllViews()
             scanner.startScan(callback)
             scanning = true
-            status.text = "Scanning for BlueMenu iBeacon UUIDs for 30 seconds…"
+            status.text = "Scanning for BlueMenu iBeacon and Eddystone-UID beacons for 30 seconds…"
             main.postDelayed({ stopScanning() }, 30_000)
         } catch (error: SecurityException) {
             status.text = "Bluetooth permission was denied. Enable Nearby devices permission in Settings."
@@ -194,13 +194,27 @@ class MainActivity : Activity() {
 
     private fun parseIBeaconUuid(result: ScanResult): String? {
         val record = result.scanRecord ?: return null
-        val data = record.getManufacturerSpecificData(0x004C) ?: return null
-        if (data.size < 18 || data[0] != 0x02.toByte() || data[1] != 0x15.toByte()) return null
-        val bytes = data.copyOfRange(2, 18)
-        val hex = bytes.joinToString("") { "%02x".format(it.toInt() and 0xff) }
-        return (hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" +
-            hex.substring(12, 16) + "-" + hex.substring(16, 20) + "-" +
-            hex.substring(20, 32)).lowercase(Locale.US)
+        val iBeacon = record.getManufacturerSpecificData(0x004C)
+        if (iBeacon != null && iBeacon.size >= 18 &&
+            iBeacon[0] == 0x02.toByte() && iBeacon[1] == 0x15.toByte()) {
+            val bytes = iBeacon.copyOfRange(2, 18)
+            val hex = bytes.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            return (hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" +
+                hex.substring(12, 16) + "-" + hex.substring(16, 20) + "-" +
+                hex.substring(20, 32)).lowercase(Locale.US)
+        }
+
+        // Eddystone-UID frame: 0x00 frame type, 1 byte TX power,
+        // 10-byte namespace and 6-byte instance identifiers.
+        val serviceData = record.getServiceData(
+            android.os.ParcelUuid.fromString("0000feaa-0000-1000-8000-00805f9b34fb")
+        ) ?: return null
+        if (serviceData.size < 18 || serviceData[0] != 0x00.toByte()) return null
+        val namespace = serviceData.copyOfRange(2, 12)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        val instance = serviceData.copyOfRange(12, 18)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        return "eddystone-uid:$namespace:$instance".lowercase(Locale.US)
     }
 
     private fun resolveVenue(identifier: String) {
