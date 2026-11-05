@@ -31,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var results: LinearLayout
     private var scanning = false
+    private var backgroundRequested = false
 
     private val scanner by lazy {
         (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeScanner
@@ -81,7 +82,7 @@ class MainActivity : Activity() {
         }
         val stop = Button(this).apply {
             text = "Stop scanning"
-            setOnClickListener { stopScanning() }
+            setOnClickListener { stopScanning(); stopService(Intent(this@MainActivity, BeaconScanService::class.java)) }
         }
         results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(title)
@@ -93,9 +94,9 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
-    private fun requestScanPermissionAndStart() {
+    private fun requestScanPermissionAndStart(background: Boolean = false) {\n        backgroundRequested = background
         val needed = if (Build.VERSION.SDK_INT >= 31) {
-            arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+            if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.POST_NOTIFICATIONS) else arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         } else {
             arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
         }
@@ -116,7 +117,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun startScanning() {
+    private fun startBackgroundService() {\n        val intent = Intent(this, BeaconScanService::class.java).setAction(BeaconScanService.ACTION_START)\n        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)\n        status.text = "Background discovery is active. Use the ongoing notification to return to BlueMenu."\n    }\n\n    private fun startScanning() {
         val adapter = (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter
         if (adapter == null) { status.text = "Bluetooth is not available on this phone."; return }
         if (!adapter.isEnabled) { startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), 42); return }
