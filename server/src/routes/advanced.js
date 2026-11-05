@@ -25,7 +25,10 @@ router.patch("/reservations/:id",edit,async(req,res,next)=>{let session;try{
    const perRoomCapacity=Math.ceil(reservation.guests/Math.max(1,reservation.rooms));
    const candidates=await Room.find({location:reservation.location,active:true,capacity:{$gte:perRoomCapacity},...(reservation.roomType?{roomType:reservation.roomType}:{})}).sort({roomNumber:1}).lean();
    const busy=await RoomNight.distinct("room",{location:reservation.location,night:{$in:nights}});
-   const available=candidates.filter(r=>!busy.some(id=>String(id)===String(r._id))).slice(0,Math.max(1,reservation.rooms));
+   const busySet=new Set(busy.map(String));
+   const legacy=await Reservation.find({_id:{$ne:reservation._id},location:reservation.location,status:{$in:["confirmed","checked_in"]},assignedRooms:{$size:0},checkIn:{$lt:end},checkOut:{$gt:start}}).lean();
+   for(const oldBooking of legacy)candidates.filter(room=>!oldBooking.roomType||room.roomType===oldBooking.roomType).slice(0,Math.max(1,oldBooking.rooms||1)).forEach(room=>busySet.add(String(room._id)));
+   const available=candidates.filter(r=>!busySet.has(String(r._id))).slice(0,Math.max(1,reservation.rooms));
    if(available.length<Math.max(1,reservation.rooms))return res.status(409).json({error:"Insufficient rooms available for the requested dates and guest count"});
    session=await mongoose.startSession();session.startTransaction();
    const allocations=[];for(const room of available)for(const night of nights)allocations.push({room:room._id,location:reservation.location,night,reservation:reservation._id});
