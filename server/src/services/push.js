@@ -67,7 +67,7 @@ export async function sendOrganizationPush({ organization, user = null, title, b
         const result = await response.json().catch(() => ({}));
         if (response.ok) return { success: true };
         const code = result.error?.details?.find(item => item.errorCode)?.errorCode || result.error?.status;
-        if (["UNREGISTERED", "INVALID_ARGUMENT"].includes(code)) await DeviceToken.updateOne({ _id: device._id }, { $set: { active: false } });
+        if (code === "UNREGISTERED") await DeviceToken.updateOne({ _id: device._id }, { $set: { active: false } });
         return { success: false };
       } catch (error) {
         console.warn("FCM send failed:", error.message);
