@@ -21,7 +21,8 @@ Set these in the API hosting provider:
 - `CLIENT_ORIGIN`: comma-separated exact HTTPS origins for the deployed web app; no wildcard.
 - `FCM_SERVICE_ACCOUNT_JSON`: one-line JSON for a Firebase service account with Firebase Cloud Messaging send permission.
 - `OPENAI_API_KEY` and optionally `AI_MODEL`: menu translation and recommendations.
-- `CRON_SECRET`: random secret used only by the renewal scheduler.\n- `DARAJA_RECONCILE_SECRET`: independent random secret for the pending STK-query reconciliation endpoint.
+- `CRON_SECRET`: random secret used only by the renewal scheduler.
+- `DARAJA_RECONCILE_SECRET`: independent random secret for the pending STK-query reconciliation endpoint.
 - Daraja production values: `DARAJA_ENV=production`, `DARAJA_CONSUMER_KEY`, `DARAJA_CONSUMER_SECRET`, `DARAJA_SHORTCODE`, `DARAJA_PASSKEY`, `DARAJA_CALLBACK_URL=https://YOUR_API_DOMAIN/api/payments/daraja/callback`; for Buy Goods also set `DARAJA_TRANSACTION_TYPE=CustomerBuyGoodsOnline` and `DARAJA_TILL_NUMBER`. Safaricom must have the callback URL registered and the production app/shortcode approved.
 - Cloudinary and Resend settings if media upload and account recovery are used.
 
